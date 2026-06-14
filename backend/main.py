@@ -162,11 +162,12 @@ class AnalyzeRequest(BaseModel):
     code_content: str
     language: str = "python"
     gemini_api_key: str = ""
+    provider: str = "gemini"
 
 @app.post("/api/analyze")
 async def analyze_code_endpoint(req: AnalyzeRequest):
     try:
-        results = await run_devpulse_analysis(req.code_content, req.language, req.gemini_api_key)
+        results = await run_devpulse_analysis(req.code_content, req.language, req.gemini_api_key, req.provider)
         return results
     except Exception as e:
         logger.exception(f"Error analyzing code: {e}")

@@ -10,12 +10,115 @@ from langchain_core.messages import SystemMessage, HumanMessage
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("DevPulseAI")
 
-async def run_security_agent(code: str, language: str, api_key: str = None) -> str:
+async def call_provider_llm(provider: str, api_key: str, system_prompt: str, user_prompt: str) -> str:
+    import httpx
+    provider_lower = provider.lower()
+    
+    if "gemini" in provider_lower:
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        from langchain_core.messages import SystemMessage, HumanMessage
+        llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", google_api_key=api_key, temperature=0.1)
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_prompt)
+        ]
+        resp = await llm.ainvoke(messages)
+        return str(resp.content)
+        
+    elif "groq" in provider_lower:
+        async with httpx.AsyncClient() as client:
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            body = {
+                "model": "llama3-70b-8192",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "temperature": 0.1
+            }
+            resp = await client.post("https://api.groq.com/openai/v1/chat/completions", json=body, timeout=30)
+            if resp.status_code != 200:
+                try:
+                    err_msg = resp.json()["error"]["message"]
+                except:
+                    err_msg = resp.text
+                raise RuntimeError(f"Groq API error: {err_msg}")
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
+            
+    elif "cohere" in provider_lower:
+        async with httpx.AsyncClient() as client:
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            body = {
+                "model": "command-r-plus",
+                "message": user_prompt,
+                "preamble": system_prompt,
+                "temperature": 0.1
+            }
+            resp = await client.post("https://api.cohere.com/v1/chat", json=body, timeout=30)
+            if resp.status_code != 200:
+                try:
+                    err_msg = resp.json()["message"]
+                except:
+                    err_msg = resp.text
+                raise RuntimeError(f"Cohere API error: {err_msg}")
+            data = resp.json()
+            return data["text"]
+            
+    elif "hugging" in provider_lower or "hf" in provider_lower:
+        async with httpx.AsyncClient() as client:
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
+            url = f"https://api-inference.huggingface.co/models/{model_id}"
+            
+            prompt = f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n"
+            
+            body = {
+                "inputs": prompt,
+                "parameters": {
+                    "max_new_tokens": 2048,
+                    "temperature": 0.1,
+                    "return_full_text": False
+                }
+            }
+            resp = await client.post(url, json=body, timeout=45)
+            if resp.status_code != 200:
+                raise RuntimeError(f"Hugging Face API error: {resp.text}")
+            data = resp.json()
+            if isinstance(data, list) and len(data) > 0:
+                return data[0].get("generated_text", "").strip()
+            elif isinstance(data, dict) and "generated_text" in data:
+                return data["generated_text"].strip()
+            else:
+                return str(data)
+    else:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+async def run_security_agent(code: str, language: str, api_key: str = None, provider: str = "gemini") -> str:
     """Invokes SecOps-Agent (Senior Cyber Security Auditor) - STRICTLY LIVE ONLY"""
-    effective_key = (api_key or "").strip() or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    effective_key = (api_key or "").strip()
+    if not effective_key:
+        p_lower = provider.lower()
+        if "gemini" in p_lower:
+            effective_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        elif "groq" in p_lower:
+            effective_key = os.environ.get("GROQ_API_KEY")
+        elif "cohere" in p_lower:
+            effective_key = os.environ.get("COHERE_API_KEY")
+        elif "hugging" in p_lower or "hf" in p_lower:
+            effective_key = os.environ.get("HUGGINGFACE_API_KEY") or os.environ.get("HF_API_KEY")
     
     if not effective_key:
-        raise ValueError("Critical Error: Gemini API key is missing. Live agent execution halted.")
+        raise ValueError(f"Critical Error: {provider.upper()} API key is missing. Live agent execution halted.")
 
     system_prompt = (
         "You are an elite cyber security auditor and Senior SecOps Engineer with 15+ years of experience auditing source code for critical flaws.\n"
@@ -25,25 +128,27 @@ async def run_security_agent(code: str, language: str, api_key: str = None) -> s
     user_prompt = f"Analyze the following {language} code for security vulnerabilities:\n\n```\n{code}\n```"
 
     try:
-        from langchain_google_genai import ChatGoogleGenerativeAI
-        llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", google_api_key=effective_key, temperature=0.1)
-        
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_prompt)
-        ]
-        resp = await llm.ainvoke(messages)
-        return str(resp.content)
+        return await call_provider_llm(provider, effective_key, system_prompt, user_prompt)
     except Exception as e:
         logger.error(f"SecOps LLM execution failed: {e}")
         raise RuntimeError(f"SecOps Agent execution failed: {str(e)}")
 
-async def run_performance_agent(code: str, language: str, api_key: str = None) -> str:
+async def run_performance_agent(code: str, language: str, api_key: str = None, provider: str = "gemini") -> str:
     """Invokes PerfScale-Agent (Principal Software Architect) - STRICTLY LIVE ONLY"""
-    effective_key = (api_key or "").strip() or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    effective_key = (api_key or "").strip()
+    if not effective_key:
+        p_lower = provider.lower()
+        if "gemini" in p_lower:
+            effective_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        elif "groq" in p_lower:
+            effective_key = os.environ.get("GROQ_API_KEY")
+        elif "cohere" in p_lower:
+            effective_key = os.environ.get("COHERE_API_KEY")
+        elif "hugging" in p_lower or "hf" in p_lower:
+            effective_key = os.environ.get("HUGGINGFACE_API_KEY") or os.environ.get("HF_API_KEY")
     
     if not effective_key:
-        raise ValueError("Critical Error: Gemini API key is missing. Live agent execution halted.")
+        raise ValueError(f"Critical Error: {provider.upper()} API key is missing. Live agent execution halted.")
 
     system_prompt = (
         "You are a low-latency systems optimization expert and Principal Software Architect.\n"
@@ -54,15 +159,7 @@ async def run_performance_agent(code: str, language: str, api_key: str = None) -
     user_prompt = f"Analyze the following {language} code for performance bottlenecks and provide a refactored version:\n\n```\n{code}\n```"
 
     try:
-        from langchain_google_genai import ChatGoogleGenerativeAI
-        llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", google_api_key=effective_key, temperature=0.1)
-        
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_prompt)
-        ]
-        resp = await llm.ainvoke(messages)
-        return str(resp.content)
+        return await call_provider_llm(provider, effective_key, system_prompt, user_prompt)
     except Exception as e:
         logger.error(f"PerfScale LLM execution failed: {e}")
         raise RuntimeError(f"PerfScale Agent execution failed: {str(e)}")
@@ -112,13 +209,13 @@ def compute_health_and_stats(code: str, sec_report: str, perf_report: str) -> Tu
 
     return health_score, security_alerts, performance_boost
 
-async def analyze_code(code_content: str, language: str = "python", api_key: str = None) -> Dict[str, Any]:
+async def analyze_code(code_content: str, language: str = "python", api_key: str = None, provider: str = "gemini") -> Dict[str, Any]:
     """Runs both agents concurrently and returns structured results."""
-    logger.info(f"Starting concurrent live agent analysis for {language} code...")
+    logger.info(f"Starting concurrent live agent analysis for {language} code via {provider}...")
     
     # Execute agents concurrently
-    sec_task = run_security_agent(code_content, language, api_key)
-    perf_task = run_performance_agent(code_content, language, api_key)
+    sec_task = run_security_agent(code_content, language, api_key, provider)
+    perf_task = run_performance_agent(code_content, language, api_key, provider)
     
     sec_report, perf_report = await asyncio.gather(sec_task, perf_task)
     

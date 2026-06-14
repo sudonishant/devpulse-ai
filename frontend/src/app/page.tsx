@@ -282,12 +282,14 @@ export default function Page() {
         body: JSON.stringify({
           code_content: codeContent,
           language: language,
-          gemini_api_key: geminiApiKey
+          gemini_api_key: geminiApiKey,
+          provider: apiType === "paid" ? "gemini" : selectedProvider
         })
       });
 
       if (!res.ok) {
-        throw new Error("Analysis request failed");
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Analysis request failed");
       }
 
       const data: AnalysisResult = await res.json();
