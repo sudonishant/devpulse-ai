@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import requests
 from typing import TypedDict, List, Dict, Any
 from langchain_core.messages import BaseMessage, AIMessage, HumanMessage
 from langgraph.graph import StateGraph, END
@@ -39,9 +40,21 @@ def get_mcp_client():
         mcp_client = SplunkMCPClient()
     return mcp_client
 
-# Check for API credentials to decide on Live vs Mock LLM execution
+# Check for API credentials to decide on Live vs Local vs Mock LLM execution
 def is_live_llm_enabled() -> bool:
     return os.environ.get("GEMINI_API_KEY") is not None or os.environ.get("GOOGLE_API_KEY") is not None
+
+def is_ollama_available() -> bool:
+    try:
+        res = requests.get("http://localhost:11434/api/tags", timeout=2)
+        if res.status_code == 200:
+            # Check if qwen2.5-coder:1.5b or other model is present
+            models = [m.get("name") for m in res.json().get("models", [])]
+            logger.info(f"Ollama local models found: {models}")
+            return True
+    except Exception:
+        pass
+    return False
 
 def run_live_llm(system_prompt: str, user_content: str, model_name="gemini-1.5-flash") -> str:
     """Invokes Google Gemini via langchain_google_genai if keys are configured."""
@@ -57,8 +70,48 @@ def run_live_llm(system_prompt: str, user_content: str, model_name="gemini-1.5-f
         resp = llm.invoke(messages)
         return resp.content
     except Exception as e:
-        logger.error(f"Live LLM execution failed: {e}. Falling back to simulator.")
+        logger.error(f"Live LLM execution failed: {e}. Falling back to Ollama.")
         return ""
+
+def run_ollama_llm(system_prompt: str, user_content: str, model_name="qwen2.5-coder:1.5b") -> str:
+    """Invokes local Ollama endpoint."""
+    try:
+        logger.info(f"Invoking Ollama chat model: {model_name}")
+        url = "http://localhost:11434/api/chat"
+        payload = {
+            "model": model_name,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content}
+            ],
+            "stream": False
+        }
+        res = requests.post(url, json=payload, timeout=30)
+        if res.status_code == 200:
+            return res.json().get("message", {}).get("content", "")
+    except Exception as e:
+        logger.error(f"Ollama LLM execution failed: {e}. Falling back to simulator.")
+    return ""
+
+def run_agent_reasoning(system_prompt: str, user_content: str, default_mock_content: str) -> str:
+    """Evaluates the 3-tier execution model (Gemini -> Ollama -> Mock)."""
+    # 1. Try Gemini
+    if is_live_llm_enabled():
+        logger.info("Executing Live Gemini Agent...")
+        resp = run_live_llm(system_prompt, user_content)
+        if resp:
+            return resp
+            
+    # 2. Try Ollama Fallback
+    if is_ollama_available():
+        logger.info("Gemini keys missing or failed. Executing Local Ollama Agent...")
+        resp = run_ollama_llm(system_prompt, user_content)
+        if resp:
+            return resp
+            
+    # 3. Fallback to High Fidelity Mock Simulation
+    logger.info("No live or local LLM available. Running high-fidelity agent simulator...")
+    return default_mock_content
 
 # Triage Node
 def triage_node(state: AgentState) -> AgentState:
@@ -69,6 +122,9 @@ def triage_node(state: AgentState) -> AgentState:
     if "latency" in alert_name.lower() or "payment" in alert_name.lower():
         service = "payment-service"
         symptoms = "HTTP latency spiked to 650ms on checkout endpoint"
+    elif "throttling" in alert_name.lower() or "cpu" in alert_name.lower() or "gateway" in alert_name.lower():
+        service = "api-gateway"
+        symptoms = "API Gateway CPU usage spiked to 98.5% with request drop rate at 15%"
     else:
         service = "auth-service"
         symptoms = "High HTTP 500 error rate (34%) detected"
@@ -77,14 +133,10 @@ def triage_node(state: AgentState) -> AgentState:
     state["symptoms"] = symptoms
     state["current_node"] = "triage"
     
-    # Run LLM (or mock reasoning)
     user_msg = f"Triage Alert: {alert_name}\nSymptoms: {symptoms}\nService: {service}"
-    if is_live_llm_enabled():
-        response = run_live_llm(TRIAGE_PROMPT, user_msg)
-    else:
-        # Mock Response
-        response = f"Triage Complete. Identified critical incident on service '{service}'. Symptoms: {symptoms}. Handoff to Diagnostician Agent for log analysis."
-        
+    mock_resp = f"Triage Complete. Identified critical incident on service '{service}'. Symptoms: {symptoms}. Handoff to Diagnostician Agent for log analysis."
+    
+    response = run_agent_reasoning(TRIAGE_PROMPT, user_msg, mock_resp)
     state["messages"].append(AIMessage(content=response, name="TriageAgent"))
     return state
 
@@ -117,11 +169,11 @@ def diagnostician_node(state: AgentState) -> AgentState:
         state["splunk_queries"].append(tele_spl)
         
         # Step 2: Run query for Git commits
-        git_spl, git_data = run_safe_query("show recent git VCS commits")
+        git_spl, git_data = run_safe_query(f"show recent git VCS commits for {service}")
         state["splunk_queries"].append(git_spl)
         
         # Step 3: Run query for Kubernetes status
-        k8s_spl, k8s_data = run_safe_query("show kubernetes pod status")
+        k8s_spl, k8s_data = run_safe_query(f"show kubernetes pod status for {service}")
         state["splunk_queries"].append(k8s_spl)
         
     except ValueError as sec_err:
@@ -144,29 +196,35 @@ def diagnostician_node(state: AgentState) -> AgentState:
     
     user_msg = f"Evaluate this environment telemetry and identify the root cause:\n{json.dumps(eval_context, indent=2)}"
     
-    if is_live_llm_enabled():
-        response = run_live_llm(DIAGNOSTICIAN_PROMPT, user_msg)
+    # Setup mock responses
+    if service == "payment-service":
+        mock_resp = (
+            "RCA Diagnosis: I executed SPL searches for APM metrics, Git changes, and Kubernetes pod status.\n"
+            "1. APM Traces show a slow database query: `SELECT * FROM payment_methods WHERE status = 'active'` taking 575ms.\n"
+            "2. Git logs show commit `8f3b2cd` by Alex 15 minutes ago introduced this query filtering (adding `WHERE status = 'active'`).\n"
+            "3. Database schema shows there is NO index on the `status` column, causing a full table scan.\n"
+            "4. Pods are running hot (90%+ CPU) trying to handle the queue backlog.\n"
+            "Root Cause: Missing index on the newly added status column in the payments DB table. Recommend rolling back commit `8f3b2cd` or executing SQL index hotfix."
+        )
+    elif service == "api-gateway":
+        mock_resp = (
+            "RCA Diagnosis: I ran telemetry, config repo, and pod status reviews.\n"
+            "1. Nginx workers show high CPU throttling due to container resource constraints.\n"
+            "2. Git history shows commit `9a2d3e` by John 20 mins ago reduced gateway CPU limits to `0.5` cores (limits.cpu = 0.5).\n"
+            "3. Replicas are running at maximum capacity with 15% drop rate.\n"
+            "Root Cause: Insufficient CPU limits for API Gateway after cost optimization config commit. Recommend rolling back commit `9a2d3e` to restore 2.0 cores limit, or scaling replicas to 5."
+        )
     else:
-        # Mock highly specific root-cause reasoning based on scenario
-        if service == "payment-service":
-            response = (
-                "RCA Diagnosis: I executed SPL searches for APM metrics, Git changes, and Kubernetes pod status.\n"
-                "1. APM Traces show a slow database query: `SELECT * FROM payment_methods WHERE status = 'active'` taking 575ms.\n"
-                "2. Git logs show commit `8f3b2cd` by Alex 15 minutes ago introduced this query filtering (adding `WHERE status = 'active'`).\n"
-                "3. Database schema shows there is NO index on the `status` column, causing a full table scan.\n"
-                "4. Pods are running hot (90%+ CPU) trying to handle the queue backlog.\n"
-                "Root Cause: Missing index on the newly added status column in the payments DB table. Recommend rolling back commit `8f3b2cd` or scaling payment replicas."
-            )
-        else:
-            response = (
-                "RCA Diagnosis: I analyzed application logs, APM errors, and Git configurations.\n"
-                "1. App logs show repeated `Connection refused to redis-cache:6379` errors.\n"
-                "2. APM trace verifies a `RedisConnectionError` on auth checks.\n"
-                "3. Git history reveals commit `1c9a4ef` by Sarah 10 minutes ago refactored cache config and updated the host to `redis-cache-v2`.\n"
-                "4. Kubernetes service mapping verifies `redis-cache-v2` is not registered. It is a configuration error.\n"
-                "Root Cause: Misconfigured Redis caching host target. Recommend rolling back commit `1c9a4ef` to restore caching and clear auth failures."
-            )
-            
+        mock_resp = (
+            "RCA Diagnosis: I analyzed application logs, APM errors, and Git configurations.\n"
+            "1. App logs show repeated `Connection refused to redis-cache:6379` errors.\n"
+            "2. APM trace verifies a `RedisConnectionError` on auth checks.\n"
+            "3. Git history reveals commit `1c9a4ef` by Sarah 10 minutes ago refactored cache config and updated the host to `redis-cache-v2`.\n"
+            "4. Kubernetes service mapping verifies `redis-cache-v2` is not registered. It is a configuration error.\n"
+            "Root Cause: Misconfigured Redis caching host target. Recommend rolling back commit `1c9a4ef` to restore caching and clear auth failures."
+        )
+        
+    response = run_agent_reasoning(DIAGNOSTICIAN_PROMPT, user_msg, mock_resp)
     state["diagnosis"] = response
     state["messages"].append(AIMessage(content=response, name="DiagnosticianAgent"))
     return state
@@ -196,6 +254,21 @@ def remediation_node(state: AgentState) -> AgentState:
                 "title": "Rollback Git code commit 8f3b2cd (Destructive)"
             }
         ]
+    elif service == "api-gateway":
+        options = [
+            {
+                "action_type": "rollback_commit",
+                "target": "9a2d3e",
+                "value": "Revert gateway CPU limit reduction",
+                "title": "Rollback Git config commit 9a2d3e (Recommended & Safe)"
+            },
+            {
+                "action_type": "scale_deployment",
+                "target": "api-gateway-deployment",
+                "value": "5",
+                "title": "Scale API-Gateway deployment to 5 replicas (Temporary buffer)"
+            }
+        ]
     else:
         options = [
             {
@@ -223,10 +296,12 @@ def remediation_node(state: AgentState) -> AgentState:
         logger.info("Critical remediation options prepared. Pausing for Human-in-the-Loop approval...")
         state["user_approval_needed"] = True
         state["remediation_status"] = "pending"
-        state["messages"].append(AIMessage(
-            content=f"Proposed remediation plans compiled: \n1. {options[0]['title']} \n2. {options[1]['title']}. Requesting operator authorization to apply one of these remedies.",
-            name="RemediationAgent"
-        ))
+        
+        user_msg = f"Compile remediation recommendations for {service} based on diagnosis: {diagnosis}"
+        mock_resp = f"Proposed remediation plans compiled: \n1. {options[0]['title']} \n2. {options[1]['title']}. Requesting operator authorization to apply one of these remedies."
+        
+        response = run_agent_reasoning(REMEDIATION_PROMPT, user_msg, mock_resp)
+        state["messages"].append(AIMessage(content=response, name="RemediationAgent"))
         return state
         
     elif status == "approved":
@@ -250,10 +325,9 @@ def remediation_node(state: AgentState) -> AgentState:
         
         state["user_approval_needed"] = False
         state["remediation_status"] = "executed"
-        state["messages"].append(AIMessage(
-            content=f"Remediation executed successfully: {exec_res.get('message')}. System status returning to normal.",
-            name="RemediationAgent"
-        ))
+        
+        success_msg = f"Remediation executed successfully: {exec_res.get('message')}. System status returning to normal."
+        state["messages"].append(AIMessage(content=success_msg, name="RemediationAgent"))
         
     elif status == "rejected":
         # Resumed and rejected by human
@@ -261,7 +335,7 @@ def remediation_node(state: AgentState) -> AgentState:
         state["user_approval_needed"] = False
         state["remediation_status"] = "rejected"
         state["messages"].append(AIMessage(
-            content=f"Remediation plans rejected by user. SRE operator will take over manually.",
+            content="Remediation plans rejected by user. SRE operator will take over manually.",
             name="RemediationAgent"
         ))
         
@@ -301,7 +375,12 @@ def auditor_node(state: AgentState) -> AgentState:
         f"Auditing logged to Splunk index: {json.dumps(audit_res.get('logged_entry'))}\n"
     )
     
-    state["messages"].append(AIMessage(content=post_mortem, name="AuditorAgent"))
+    response = run_agent_reasoning(
+        AUDITOR_PROMPT, 
+        f"Generate post-mortem report for {service} resolved with status {status}", 
+        post_mortem
+    )
+    state["messages"].append(AIMessage(content=response, name="AuditorAgent"))
     return state
 
 # Build the Graph

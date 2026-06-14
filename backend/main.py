@@ -117,15 +117,16 @@ async def run_incident_flow(incident_id: str, state: AgentState):
 @app.post("/api/incidents/trigger")
 async def trigger_incident(req: TriggerIncidentRequest, background_tasks: BackgroundTasks):
     scenario = req.scenario
-    if scenario not in ["latency_spike", "error_spike"]:
+    if scenario not in ["latency_spike", "error_spike", "cpu_throttling"]:
         raise HTTPException(status_code=400, detail="Invalid scenario name")
         
     incident_id = str(uuid.uuid4())
-    alert_name = (
-        "High Latency on Payment-Service"
-        if scenario == "latency_spike"
-        else "High Error Rate on Auth-Service"
-    )
+    if scenario == "latency_spike":
+        alert_name = "High Latency on Payment-Service"
+    elif scenario == "cpu_throttling":
+        alert_name = "Severe CPU Throttling on API-Gateway"
+    else:
+        alert_name = "High Error Rate on Auth-Service"
     
     # Initialize the base state
     initial_state: AgentState = {

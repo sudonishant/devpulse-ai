@@ -2,18 +2,11 @@
 
 Auto-SRE is an enterprise-grade, autonomous Site Reliability Engineering (SRE) assistant that automatically triages, diagnoses, and remediates application degradations in minutes instead of hours. Built for the **Splunk Agentic Ops Hackathon 2026**.
 
----
-
-## ⚡ Tech Stack (Short & Punchy)
-
-*   **Orchestration:** LangGraph (Multi-agent state machine control)
-*   **Data & Observability:** Splunk MCP (Model Context Protocol), Splunk APM
-*   **LLMs:** GPT-4o / Claude 3.5 Sonnet / Gemini 1.5 Pro (via Splunk MCP)
-*   **Infrastructure:** Kubernetes, AWS, GitHub Actions
+This platform integrates with **Splunk Model Context Protocol (MCP)** to query application telemetry, traces, and git VCS changes. It uses a **LangGraph State Machine** to coordinate specialized agents, request Human-In-The-Loop approvals, execute DDL schema migrations, perform config rollbacks, and record full audit traces back into Splunk.
 
 ---
 
-## 🎨 The "Wow" Factor (Visuals & Demos)
+## 🎨 System Walkthrough & Screenshots
 
 ### ⏱️ Side-by-Side Comparison (Manual vs. Auto-SRE)
 
@@ -22,12 +15,21 @@ Auto-SRE is an enterprise-grade, autonomous Site Reliability Engineering (SRE) a
 | **Triage** | Scroll Slack alerts, find the target microservice, set up a war room. | **Triage Agent** intercepts the alert, maps the service and symptoms in 5 seconds. |
 | **APM / Logs Scan** | Run multiple manual queries on Splunk to check CPU, APM traces, and DB calls. | **Diagnostician Agent** calls Splunk MCP tools to run secure SPL queries automatically. |
 | **VCS Correlation** | Scroll through git history, contact engineers to find recent config changes. | Agent inspects Splunk VCS logs, detects the faulty commit, and outputs a visual **Git Diff**. |
-| **Mitigation** | Manually execute Kubernetes rollbacks or apply DDL index scripts. | **Remediation Agent** proposes recovery paths (e.g. safe SQL Hotfix vs. Git Rollback) instantly. |
+| **Mitigation** | Manually execute Kubernetes rollbacks or apply DDL index scripts. | **Remediation Agent** proposes recovery paths (e.g. safe SQLite Index vs. Git Rollback) instantly. |
 
-### 💬 ChatOps Human-in-the-Loop Approval
-Auto-SRE integrates directly into engineering ChatOps workflows. The agent dispatches alert details to a Slack channel with interactive buttons, allowing engineers to authorize fixes directly from Slack.
+---
 
-*(Include the `ChatOps Slack Alert` screenshot here showing the interactive approval buttons)*
+### 🖥️ 1. Apple-style SRE Control Dashboard
+A sleek, glassmorphic overview displaying system health, latency metrics, mean time to resolution (MTTR) stats, and active incident rooms.
+![Dashboard View](./frontend/public/dashboard_view.png)
+
+### 📊 2. Active SRE Incident Room & Topology
+An interactive workspace displaying real-time agent console logs, SVG network topologies showing throttling/unhealthy services, and a live ChatOps Slack simulation sidebar for operator approval.
+![Incident Room](./frontend/public/incident_room_view.png)
+
+### ⚙️ 3. Audit Trails & Git Diff Correlation
+Displays the exact root-cause Git commit difference side-by-side and prints the structured, token-tracked SRE audit logs sent to Splunk.
+![Remediation Flow](./frontend/public/remediation_flow.png)
 
 ---
 
@@ -48,24 +50,67 @@ graph TD
 
 ---
 
-## 🚀 Getting Started
+## ⚙️ How to Install & Run Locally
 
-### 1. Run the Startup Script
-From the root of the project, launch the backend (FastAPI) and frontend (Next.js) concurrently:
+### 1. Prerequisites
+- **Python**: Version 3.10 or higher
+- **Node.js**: Version 18.x or higher
+- **Ollama** (Optional for offline local reasoning): Ensure Ollama is installed and running with the model:
+  ```bash
+  ollama run qwen2.5-coder:1.5b
+  ```
+
+### 2. Clone and Setup Environment
+
+#### Backend Setup:
+1. Navigate to the backend directory:
+   ```bash
+   cd backend
+   ```
+2. Create and activate a virtual environment:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Set up environment keys (Optional - if missing, Auto-SRE automatically falls back to Ollama or a structured reasoning simulator):
+   ```bash
+   export GEMINI_API_KEY="your-gemini-key"
+   ```
+
+#### Frontend Setup:
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
+2. Install npm packages:
+   ```bash
+   npm install
+   ```
+
+---
+
+### 3. Run the Platform
+From the root of the project, launch the backend and frontend concurrently using the startup script:
 ```bash
 ./run.sh
 ```
 
-*   **Local Dashboard UI:** `http://localhost:3000`
-*   **API Server Endpoint:** `http://localhost:8000`
-
-### 2. Simulate Outages
-Open the dashboard at `http://localhost:3000`:
-*   **Scenario A:** Payment-Service Checkout Latency (Resolves by executing DDL Index Hotfix).
-*   **Scenario B:** Auth-Service Session Errors (Resolves by Reverting Config Commit).
+- **Local Control Panel UI:** `http://localhost:3000`
+- **FastAPI Server Endpoint:** `http://localhost:8000`
 
 ---
 
-## 🔮 Future Roadmap (The Vision)
+## 🔮 Interactive Outage Scenarios
+Open the dashboard UI to trigger and resolve simulated incidents:
+- **Scenario A (Payment-Service Checkout Latency):** Diagnoses a slow database transaction on the SQLite database, creating a real index schema hotfix to decrease response latency.
+- **Scenario B (Auth-Service Cache Failures):** Identifies a configuration hostname mismatch in `config/production.json` and performs a Git commit rollback to heal the connection.
+- **Scenario C (Gateway CPU Resource Starvation):** Detects container resource limit throttling in `gateway-deployment.yaml` and executes an automated manifest rollback restoring gateway cores.
 
-> **Future:** Integrating Predictive SRE to fix issues even **BEFORE** the alert triggers (using Splunk's predictive analytics and forecasting metrics).
+---
+
+## 🔗 Project Showcase Link
+> **Hackathon Presentation link:** *(User link placeholder - will be added here)*

@@ -14,6 +14,7 @@ import {
   CheckCircle, 
   XCircle, 
   AlertCircle, 
+  AlertTriangle,
   HelpCircle,
   Copy,
   ChevronRight,
@@ -74,17 +75,17 @@ const highlightSPL = (query: string) => {
     
     // String literals
     if ((token.startsWith('"') && token.endsWith('"')) || (token.startsWith("'") && token.endsWith("'"))) {
-      return <span key={idx} className="text-cyan-405 font-semibold">{token}</span>;
+      return <span key={idx} className="text-cyan-400 font-medium">{token}</span>;
     }
     
     // Pipe operator
     if (token === '|') {
-      return <span key={idx} className="text-amber-500 font-bold mx-1">{token}</span>;
+      return <span key={idx} className="text-amber-500 font-semibold mx-1">{token}</span>;
     }
     
     // Assignment/Comparison operators
     if (['=', '!=', '>', '<', '>=', '<='].includes(token)) {
-      return <span key={idx} className="text-amber-400 font-semibold">{token}</span>;
+      return <span key={idx} className="text-amber-400 font-medium">{token}</span>;
     }
     
     // Whitespace
@@ -96,19 +97,19 @@ const highlightSPL = (query: string) => {
     const trimmed = token.trim();
     if (keywords.test(trimmed)) {
       keywords.lastIndex = 0; // reset regex index
-      return <span key={idx} className="text-fuchsia-400 font-bold">{token}</span>;
+      return <span key={idx} className="text-fuchsia-400 font-semibold">{token}</span>;
     }
     
     // Aggregate metrics functions
     if (aggFunctions.test(trimmed)) {
       aggFunctions.lastIndex = 0; // reset
-      return <span key={idx} className="text-purple-400 font-semibold">{token}</span>;
+      return <span key={idx} className="text-purple-400 font-medium">{token}</span>;
     }
     
     // Boolean operators
     if (booleanOps.test(trimmed)) {
       booleanOps.lastIndex = 0; // reset
-      return <span key={idx} className="text-orange-400 font-bold">{token}</span>;
+      return <span key={idx} className="text-orange-400 font-semibold">{token}</span>;
     }
 
     // Number literals
@@ -117,7 +118,7 @@ const highlightSPL = (query: string) => {
     }
 
     // General token
-    return <span key={idx} className="text-slate-300">{token}</span>;
+    return <span key={idx} className="text-slate-350">{token}</span>;
   });
 };
 
@@ -162,7 +163,6 @@ export default function IncidentRoomPage() {
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === "state_update") {
-        console.log("State updated:", JSON.stringify(data.state));
         setState(data.state);
       }
     };
@@ -211,15 +211,16 @@ export default function IncidentRoomPage() {
 
   if (!state) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center text-gray-400">
-        <div className="h-12 w-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-sm font-semibold tracking-wider uppercase">Connecting to SRE Investigation Room...</p>
+      <div className="min-h-screen bg-[#070709] flex flex-col items-center justify-center text-gray-400">
+        <div className="h-10 w-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-xs font-medium tracking-wider uppercase">Loading SRE Investigation Desk...</p>
       </div>
     );
   }
 
   // Determine scenario details for rendering
   const isLatencyScenario = state.alert_name.toLowerCase().includes("latency");
+  const isThrottlingScenario = state.alert_name.toLowerCase().includes("throttling") || state.service === "api-gateway";
   const currentAgent = state.current_node ? state.current_node.toUpperCase() : "TRIAGE";
   const isExecuted = state.remediation_status === "executed";
 
@@ -227,38 +228,38 @@ export default function IncidentRoomPage() {
   const formatText = (text: string) => {
     if (!text) return "";
     return text.split("\n").map((line, idx) => {
-      // Headers
-      if (line.startsWith("# ")) return <h1 key={idx} className="text-xl font-bold text-white mt-4 mb-2">{line.replace("# ", "")}</h1>;
-      if (line.startsWith("### ")) return <h3 key={idx} className="text-md font-bold text-gray-200 mt-3 mb-1">{line.replace("### ", "")}</h3>;
-      if (line.startsWith("## ")) return <h2 key={idx} className="text-lg font-bold text-white mt-4 mb-2">{line.replace("## ", "")}</h2>;
+      if (line.startsWith("# ")) return <h1 key={idx} className="text-lg font-semibold text-white mt-4 mb-2">{line.replace("# ", "")}</h1>;
+      if (line.startsWith("### ")) return <h3 key={idx} className="text-sm font-semibold text-gray-200 mt-3 mb-1">{line.replace("### ", "")}</h3>;
+      if (line.startsWith("## ")) return <h2 key={idx} className="text-base font-semibold text-white mt-4 mb-2">{line.replace("## ", "")}</h2>;
       
-      // Bullets
       if (line.startsWith("- ") || line.startsWith("* ")) {
         return (
-          <li key={idx} className="ml-4 list-disc text-gray-300 my-1">
+          <li key={idx} className="ml-4 list-disc text-gray-300 my-1 text-xs sm:text-sm">
             {line.substring(2)}
           </li>
         );
       }
       
-      // Regular paragraphs
-      return <p key={idx} className="text-gray-300 my-1.5 leading-relaxed">{line}</p>;
+      return <p key={idx} className="text-gray-300 my-1 leading-relaxed text-xs sm:text-sm">{line}</p>;
     });
   };
 
   // SVG Metrics Chart Generator
   const renderMetricsChart = () => {
-    const isExecuted = state.remediation_status === "executed";
-    
     // Choose dataset based on scenario
-    const values = isLatencyScenario 
-      ? (isExecuted ? [610, 640, 650, 630, 655, 645, 660, 650, 240, 140, 120, 115] : [610, 640, 650, 630, 655, 645, 660, 650])
-      : (isExecuted ? [31, 34, 33, 35, 34, 36, 35, 34, 18, 5, 0.6, 0.2] : [31, 34, 33, 35, 34, 36, 35, 34]);
+    let values = [];
+    if (isLatencyScenario) {
+      values = isExecuted ? [610, 640, 650, 630, 655, 645, 660, 650, 240, 140, 120, 115] : [610, 640, 650, 630, 655, 645, 660, 650];
+    } else if (isThrottlingScenario) {
+      values = isExecuted ? [92, 94, 98, 97, 99, 98, 98.5, 96, 50, 31, 26, 25.4] : [92, 94, 98, 97, 99, 98, 98.5, 96];
+    } else {
+      values = isExecuted ? [31, 34, 33, 35, 34, 36, 35, 34, 18, 5, 0.6, 0.2] : [31, 34, 33, 35, 34, 36, 35, 34];
+    }
 
-    const maxVal = isLatencyScenario ? 700 : 40;
+    const maxVal = isLatencyScenario ? 700 : 100;
     const unit = isLatencyScenario ? "ms" : "%";
-    const title = isLatencyScenario ? "Response Latency" : "Error Rate";
-    const accentHex = isLatencyScenario ? "#f59e0b" : "#f43f5e";
+    const title = isLatencyScenario ? "Checkout Response Latency" : (isThrottlingScenario ? "API-Gateway CPU Load" : "Auth-Service 5xx Rate");
+    const accentHex = isLatencyScenario ? "#0071e3" : (isThrottlingScenario ? "#ff9500" : "#ff3b30");
 
     // Map data to SVG viewBox coordinates (width=400, height=100)
     const pointsCount = values.length;
@@ -268,17 +269,16 @@ export default function IncidentRoomPage() {
       return `${x},${y}`;
     }).join(" ");
 
-    // For the filled area below line
     const areaPoints = `${10},85 ${pointsString} ${10 + (pointsCount - 1) * (380 / (pointsCount - 1))},85`;
     const currentVal = values[values.length - 1];
 
     return (
-      <div className="glass-panel rounded-2xl p-5 border-gray-800 space-y-4">
-        <div className="flex items-center justify-between border-b border-gray-850 pb-2">
-          <span className="flex items-center gap-1.5 text-xs font-bold uppercase text-blue-400">
-            <Activity className="h-4 w-4" /> Live {title} Telemetry
+      <div className="glass-panel p-5 space-y-4">
+        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase text-gray-400">
+            <Activity className="h-4 w-4" /> Live {title}
           </span>
-          <span className={`text-xs font-bold font-mono px-2 py-0.5 rounded ${
+          <span className={`text-xs font-semibold font-mono px-2 py-0.5 rounded-full ${
             isExecuted ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
           }`}>
             Current: {currentVal}{unit}
@@ -286,15 +286,15 @@ export default function IncidentRoomPage() {
         </div>
         
         {/* SVG Polyline Chart */}
-        <div className="relative h-24 bg-gray-950/40 rounded-xl border border-gray-900/60 p-2 overflow-hidden">
+        <div className="relative h-24 bg-black/35 rounded-xl border border-white/5 p-2 overflow-hidden">
           <svg className="w-full h-full" viewBox="0 0 400 100" preserveAspectRatio="none">
-            <line x1="10" y1="15" x2="390" y2="15" stroke="rgba(255,255,255,0.02)" strokeWidth="1" />
-            <line x1="10" y1="50" x2="390" y2="50" stroke="rgba(255,255,255,0.02)" strokeWidth="1" />
-            <line x1="10" y1="85" x2="390" y2="85" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+            <line x1="10" y1="15" x2="390" y2="15" stroke="rgba(255,255,255,0.015)" strokeWidth="1" />
+            <line x1="10" y1="50" x2="390" y2="50" stroke="rgba(255,255,255,0.015)" strokeWidth="1" />
+            <line x1="10" y1="85" x2="390" y2="85" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
 
             <defs>
               <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={accentHex} stopOpacity="0.15" />
+                <stop offset="0%" stopColor={accentHex} stopOpacity="0.12" />
                 <stop offset="100%" stopColor={accentHex} stopOpacity="0.0" />
               </linearGradient>
             </defs>
@@ -303,18 +303,17 @@ export default function IncidentRoomPage() {
             <polyline
               fill="none"
               stroke={accentHex}
-              strokeWidth="2.5"
+              strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
               points={pointsString}
-              style={{ filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.5))" }}
             />
           </svg>
         </div>
-        <div className="flex justify-between text-[10px] text-gray-500 font-mono">
-          <span>Alert Triggered</span>
-          {isExecuted && <span className="text-emerald-400">✓ Remediation Executed</span>}
-          <span>Now</span>
+        <div className="flex justify-between text-[9px] text-gray-500 font-mono">
+          <span>Outage Detected</span>
+          {isExecuted && <span className="text-emerald-400 font-semibold">✓ Remediated & Healed</span>}
+          <span>Real-time</span>
         </div>
       </div>
     );
@@ -324,37 +323,53 @@ export default function IncidentRoomPage() {
   const renderGitDiff = () => {
     if (!state.diagnosis) return null;
 
-    const fileName = isLatencyScenario ? "db/queries.py" : "config/production.json";
-    const diffLines = isLatencyScenario ? [
-      { type: 'header', text: '--- a/db/queries.py' },
-      { type: 'header', text: '+++ b/db/queries.py' },
-      { type: 'info', text: '@@ -12,2 +12,2 @@' },
-      { type: 'deletion', text: '-     query = "SELECT * FROM payment_methods"' },
-      { type: 'addition', text: '+     query = "SELECT * FROM payment_methods WHERE status = \'active\'"' },
-    ] : [
-      { type: 'header', text: '--- a/config/production.json' },
-      { type: 'header', text: '+++ b/config/production.json' },
-      { type: 'info', text: '@@ -4,2 +4,2 @@' },
-      { type: 'deletion', text: '-     "redis_host": "redis-cache",' },
-      { type: 'addition', text: '+     "redis_host": "redis-cache-v2",' },
-    ];
+    let fileName = "";
+    let diffLines = [];
+    if (isLatencyScenario) {
+      fileName = "db/queries.py";
+      diffLines = [
+        { type: 'header', text: '--- a/db/queries.py' },
+        { type: 'header', text: '+++ b/db/queries.py' },
+        { type: 'info', text: '@@ -12,2 +12,2 @@' },
+        { type: 'deletion', text: '-     query = "SELECT * FROM payment_methods"' },
+        { type: 'addition', text: '+     query = "SELECT * FROM payment_methods WHERE status = \'active\'"' },
+      ];
+    } else if (isThrottlingScenario) {
+      fileName = "k8s/gateway-deployment.yaml";
+      diffLines = [
+        { type: 'header', text: '--- a/k8s/gateway-deployment.yaml' },
+        { type: 'header', text: '+++ b/k8s/gateway-deployment.yaml' },
+        { type: 'info', text: '@@ -10,2 +10,2 @@' },
+        { type: 'deletion', text: '-            cpu: "2.0"' },
+        { type: 'addition', text: '+            cpu: "0.5"' },
+      ];
+    } else {
+      fileName = "config/production.json";
+      diffLines = [
+        { type: 'header', text: '--- a/config/production.json' },
+        { type: 'header', text: '+++ b/config/production.json' },
+        { type: 'info', text: '@@ -4,2 +4,2 @@' },
+        { type: 'deletion', text: '-     "redis_host": "redis-cache",' },
+        { type: 'addition', text: '+     "redis_host": "redis-cache-v2",' },
+      ];
+    }
 
     return (
-      <div className="glass-panel rounded-2xl p-5 border-gray-800 space-y-3 font-mono text-xs">
-        <div className="flex items-center justify-between border-b border-gray-850 pb-2 mb-2 text-gray-400">
-          <span className="flex items-center gap-1.5 font-sans font-bold uppercase text-[10px] text-indigo-400">
-            <GitBranch className="h-4 w-4" /> Root-Cause Git Commit Diff
+      <div className="glass-panel p-5 font-mono text-[11px] space-y-2">
+        <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-1 text-gray-500">
+          <span className="flex items-center gap-1.5 font-sans font-bold uppercase text-[9px] text-gray-400">
+            <GitBranch className="h-3.5 w-3.5" /> Root-Cause Git Commit Diff
           </span>
-          <span className="text-gray-500 text-[10px]">{isLatencyScenario ? "commit 8f3b2cd" : "commit 1c9a4ef"}</span>
+          <span className="text-[10px]">{isLatencyScenario ? "commit 8f3b2cd" : (isThrottlingScenario ? "commit 9a2d3e" : "commit 1c9a4ef")}</span>
         </div>
-        <div className="text-gray-400 text-[11px] mb-1">File: <span className="text-white font-bold">{fileName}</span></div>
-        <div className="bg-gray-950 rounded-lg border border-gray-900 overflow-hidden divide-y divide-gray-955">
+        <div className="text-gray-400 mb-1">File: <span className="text-white font-semibold">{fileName}</span></div>
+        <div className="bg-[#0c0c0e] rounded-xl border border-white/5 overflow-hidden divide-y divide-white/2">
           {diffLines.map((line, idx) => {
             let bg = "bg-transparent text-gray-400";
-            if (line.type === 'header') bg = "bg-gray-900/60 text-gray-400 font-bold";
-            if (line.type === 'info') bg = "bg-blue-950/20 text-blue-400";
-            if (line.type === 'deletion') bg = "bg-rose-950/30 text-rose-400 border-l-2 border-rose-500 pl-1";
-            if (line.type === 'addition') bg = "bg-emerald-950/30 text-emerald-400 border-l-2 border-emerald-500 pl-1";
+            if (line.type === 'header') bg = "bg-white/5 text-gray-400 font-semibold";
+            if (line.type === 'info') bg = "bg-blue-950/15 text-blue-450";
+            if (line.type === 'deletion') bg = "bg-rose-950/20 text-rose-400 border-l-2 border-rose-500 pl-2";
+            if (line.type === 'addition') bg = "bg-emerald-950/20 text-emerald-400 border-l-2 border-emerald-500 pl-2";
             return (
               <div key={idx} className={`py-1.5 px-3 whitespace-pre ${bg}`}>
                 {line.text}
@@ -369,32 +384,32 @@ export default function IncidentRoomPage() {
   return (
     <div className="relative min-h-screen grid-bg flex flex-col z-10 px-4 sm:px-6 lg:px-8 py-6">
       
-      {/* Top Navigation / Controls */}
-      <nav className="w-full flex items-center justify-between border-b border-gray-800 pb-4 mb-6">
+      {/* Premium Apple Navigation Header */}
+      <nav className="w-full flex items-center justify-between border-b border-white/5 pb-4 mb-6">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push("/")}
-            className="p-2 border border-gray-800 hover:border-gray-700 bg-gray-950 rounded-lg text-gray-400 hover:text-white transition-colors cursor-pointer"
+            className="p-2 border border-white/5 hover:border-white/10 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-all cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
           <div>
-            <h1 className="text-lg font-bold text-white flex items-center gap-2">
-              <span className="text-gray-400 font-normal">Incident</span> #{incidentId.substring(0, 8)}
+            <h1 className="text-base font-semibold text-white flex items-center gap-1.5">
+              <span className="text-gray-400 font-normal">SRE Room</span> #{incidentId.substring(0, 8)}
             </h1>
-            <p className="text-xs text-gray-500 font-mono">Status: {state.remediation_status.toUpperCase()}</p>
+            <p className="text-[10px] text-gray-500 font-mono uppercase">Status: {state.remediation_status}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 text-xs text-gray-400 border border-gray-800 bg-gray-950 px-3 py-1.5 rounded-lg">
-            <span className={`h-1.5 w-1.5 rounded-full ${wsConnected ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`}></span>
-            {wsConnected ? "Agent Connection Live" : "Reconnecting..."}
+          <div className="hidden sm:flex items-center gap-2 text-[10px] text-gray-400 border border-white/5 bg-white/2 px-3 py-1.5 rounded-full">
+            <span className={`h-1.5 w-1.5 rounded-full breathe-dot ${wsConnected ? "bg-emerald-400" : "bg-rose-400"}`}></span>
+            {wsConnected ? "Telemetry Socket Connected" : "Connecting..."}
           </div>
           
-          <div className="bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 animate-pulse">
+          <div className="bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-semibold px-2.5 py-1.5 rounded-xl flex items-center gap-1">
             <Layers className="h-3.5 w-3.5" />
-            {currentAgent} NODE
+            {currentAgent}
           </div>
         </div>
       </nav>
@@ -406,121 +421,118 @@ export default function IncidentRoomPage() {
         <div className="lg:col-span-8 flex flex-col gap-6">
           
           {/* Topology Map */}
-          <div className="glass-panel rounded-2xl p-6 border-gray-800 relative overflow-hidden">
-            <div className="absolute top-4 left-4 flex items-center gap-2">
+          <div className="glass-panel p-6 border-white/5 relative overflow-hidden">
+            <div className="absolute top-4 left-4 flex items-center gap-1.5">
               <Server className="h-4 w-4 text-blue-400" />
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Environment Network Topology</span>
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Topology Map</span>
             </div>
             
             {/* SVG Network Map */}
-            <div className="h-48 flex items-center justify-center mt-6">
+            <div className="h-44 flex items-center justify-center mt-5">
               <svg width="100%" height="100%" viewBox="0 0 600 150" className="max-w-xl">
                 <defs>
                   {/* Glowing Node Filter */}
                   <filter id="svgGlowBlue" x="-30%" y="-30%" width="160%" height="160%">
-                    <feGaussianBlur stdDeviation="4" result="blur" />
+                    <feGaussianBlur stdDeviation="3" result="blur" />
                     <feComposite in="SourceGraphic" in2="blur" operator="over" />
                   </filter>
                   <filter id="svgGlowGreen" x="-30%" y="-30%" width="160%" height="160%">
-                    <feGaussianBlur stdDeviation="4" result="blur" />
+                    <feGaussianBlur stdDeviation="3" result="blur" />
                     <feComposite in="SourceGraphic" in2="blur" operator="over" />
                   </filter>
                   <filter id="svgGlowRose" x="-30%" y="-30%" width="160%" height="160%">
-                    <feGaussianBlur stdDeviation="6" result="blur" />
+                    <feGaussianBlur stdDeviation="4" result="blur" />
                     <feComposite in="SourceGraphic" in2="blur" operator="over" />
                   </filter>
                   <filter id="svgGlowAmber" x="-30%" y="-30%" width="160%" height="160%">
-                    <feGaussianBlur stdDeviation="5" result="blur" />
+                    <feGaussianBlur stdDeviation="4" result="blur" />
                     <feComposite in="SourceGraphic" in2="blur" operator="over" />
                   </filter>
 
                   {/* Gradients */}
                   <radialGradient id="gradBlue" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#60a5fa" />
-                    <stop offset="100%" stopColor="#1e3a8a" />
+                    <stop offset="0%" stopColor="#3b82f6" />
+                    <stop offset="100%" stopColor="#1d4ed8" />
                   </radialGradient>
                   <radialGradient id="gradGreen" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#34d399" />
-                    <stop offset="100%" stopColor="#064e3b" />
+                    <stop offset="0%" stopColor="#10b981" />
+                    <stop offset="100%" stopColor="#047857" />
                   </radialGradient>
                   <radialGradient id="gradRose" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#f87171" />
-                    <stop offset="100%" stopColor="#7f1d1d" />
+                    <stop offset="0%" stopColor="#f43f5e" />
+                    <stop offset="100%" stopColor="#be123c" />
                   </radialGradient>
                   <radialGradient id="gradAmber" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#fbbf24" />
-                    <stop offset="100%" stopColor="#78350f" />
-                  </radialGradient>
-                  <radialGradient id="gradDark" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#374151" />
-                    <stop offset="100%" stopColor="#111827" />
+                    <stop offset="0%" stopColor="#f59e0b" />
+                    <stop offset="100%" stopColor="#b45309" />
                   </radialGradient>
                 </defs>
 
-                {/* Connection lines */}
-                {/* 1. API Gateway -> payment-service */}
-                <line x1="100" y1="75" x2="250" y2="75" stroke="#1f2937" strokeWidth="4" strokeLinecap="round" />
+                {/* API Gateway -> payment-service */}
+                <line x1="100" y1="75" x2="250" y2="75" stroke="#1f2937" strokeWidth="3" />
                 <line 
                   x1="100" y1="75" x2="250" y2="75" 
                   stroke={isExecuted ? "#10b981" : (isLatencyScenario ? "#f59e0b" : "#10b981")} 
-                  strokeWidth="2" 
-                  strokeDasharray="6,6" 
-                  strokeLinecap="round"
+                  strokeWidth="1.5" 
+                  strokeDasharray="5,5" 
                 >
-                  <animate attributeName="stroke-dashoffset" values="36;0" dur="1.5s" repeatCount="indefinite" />
+                  <animate attributeName="stroke-dashoffset" values="30;0" dur="1.5s" repeatCount="indefinite" />
                 </line>
 
-                {/* 2. payment-service -> auth-service */}
-                <line x1="250" y1="75" x2="400" y2="75" stroke="#1f2937" strokeWidth="4" strokeLinecap="round" />
+                {/* payment-service -> auth-service */}
+                <line x1="250" y1="75" x2="400" y2="75" stroke="#1f2937" strokeWidth="3" />
                 <line 
                   x1="250" y1="75" x2="400" y2="75" 
                   stroke={isExecuted ? "#10b981" : (isLatencyScenario ? "#3b82f6" : "#f43f5e")} 
-                  strokeWidth="2" 
-                  strokeDasharray="6,6" 
-                  strokeLinecap="round"
+                  strokeWidth="1.5" 
+                  strokeDasharray="5,5" 
                 >
-                  <animate attributeName="stroke-dashoffset" values="36;0" dur="1.5s" repeatCount="indefinite" />
+                  <animate attributeName="stroke-dashoffset" values="30;0" dur="1.5s" repeatCount="indefinite" />
                 </line>
 
-                {/* 3. payment-service -> postgres-db (only active flow in latency scenario) */}
+                {/* Target Database lines */}
                 {isLatencyScenario && (
                   <>
-                    <line x1="250" y1="75" x2="520" y2="75" stroke="#1f2937" strokeWidth="4" strokeLinecap="round" />
+                    <line x1="250" y1="75" x2="520" y2="75" stroke="#1f2937" strokeWidth="3" />
                     <line 
                       x1="250" y1="75" x2="520" y2="75" 
                       stroke={isExecuted ? "#10b981" : "#f59e0b"} 
-                      strokeWidth="2" 
-                      strokeDasharray="6,6" 
-                      strokeLinecap="round"
+                      strokeWidth="1.5" 
+                      strokeDasharray="5,5" 
                     >
-                      <animate attributeName="stroke-dashoffset" values="36;0" dur="1.2s" repeatCount="indefinite" />
+                      <animate attributeName="stroke-dashoffset" values="30;0" dur="1.2s" repeatCount="indefinite" />
                     </line>
                   </>
                 )}
 
-                {/* 4. auth-service -> redis-cache (only active flow in error scenario) */}
-                {!isLatencyScenario && (
+                {/* Target Redis Cache lines */}
+                {!isLatencyScenario && !isThrottlingScenario && (
                   <>
-                    <line x1="400" y1="75" x2="520" y2="75" stroke="#1f2937" strokeWidth="4" strokeLinecap="round" />
+                    <line x1="400" y1="75" x2="520" y2="75" stroke="#1f2937" strokeWidth="3" />
                     <line 
                       x1="400" y1="75" x2="520" y2="75" 
                       stroke={isExecuted ? "#10b981" : "#f43f5e"} 
-                      strokeWidth="2" 
-                      strokeDasharray="6,6" 
-                      strokeLinecap="round"
+                      strokeWidth="1.5" 
+                      strokeDasharray="5,5" 
                     >
-                      <animate attributeName="stroke-dashoffset" values="36;0" dur="1.2s" repeatCount="indefinite" />
+                      <animate attributeName="stroke-dashoffset" values="30;0" dur="1.2s" repeatCount="indefinite" />
                     </line>
                   </>
                 )}
                 
-                {/* Node 1: API Gateway (Always healthy) */}
+                {/* Node 1: API Gateway */}
                 <g transform="translate(100, 75)">
-                  <circle r="26" fill="url(#gradBlue)" stroke="#3b82f6" strokeWidth="2" filter="url(#svgGlowBlue)" />
-                  <foreignObject x="-12" y="-12" width="24" height="24" className="pointer-events-none">
-                    <Server className="h-6 w-6 text-white" />
+                  <circle 
+                    r="24" 
+                    fill={isThrottlingScenario ? (isExecuted ? "url(#gradGreen)" : "url(#gradAmber)") : "url(#gradBlue)"} 
+                    stroke={isThrottlingScenario ? (isExecuted ? "#10b981" : "#f59e0b") : "#3b82f6"} 
+                    strokeWidth="2" 
+                    filter={isThrottlingScenario ? (isExecuted ? "url(#svgGlowGreen)" : "url(#svgGlowAmber)") : "url(#svgGlowBlue)"} 
+                  />
+                  <foreignObject x="-10" y="-10" width="20" height="20" className="pointer-events-none">
+                    <Server className="h-5 w-5 text-white" />
                   </foreignObject>
-                  <text y="42" textAnchor="middle" fill="#9ca3af" fontSize="9" fontWeight="bold" className="font-mono">api-gateway</text>
+                  <text y="38" textAnchor="middle" fill="#9ca3af" fontSize="9" fontWeight="bold" className="font-mono">api-gateway</text>
                 </g>
 
                 {/* Node 2: payment-service */}
@@ -528,86 +540,82 @@ export default function IncidentRoomPage() {
                   {isLatencyScenario ? (
                     <>
                       <circle 
-                        r="30" 
+                        r="26" 
                         fill={isExecuted ? "url(#gradGreen)" : "url(#gradAmber)"} 
                         stroke={isExecuted ? "#10b981" : "#f59e0b"} 
-                        strokeWidth="2.5" 
+                        strokeWidth="2" 
                         filter={isExecuted ? "url(#svgGlowGreen)" : "url(#svgGlowAmber)"}
-                        className={isExecuted ? "" : "animate-pulse"} 
                       />
-                      <foreignObject x="-12" y="-12" width="24" height="24" className="pointer-events-none">
-                        <Layers className={`h-6 w-6 text-white ${isExecuted ? "" : "animate-bounce"}`} />
+                      <foreignObject x="-10" y="-10" width="20" height="20" className="pointer-events-none">
+                        <Layers className={`h-5 w-5 text-white ${isExecuted ? "" : "animate-bounce"}`} />
                       </foreignObject>
                     </>
                   ) : (
                     <>
-                      <circle r="30" fill="url(#gradGreen)" stroke="#10b981" strokeWidth="2" filter="url(#svgGlowGreen)" />
-                      <foreignObject x="-12" y="-12" width="24" height="24" className="pointer-events-none">
-                        <Layers className="h-6 w-6 text-white" />
+                      <circle r="26" fill="url(#gradGreen)" stroke="#10b981" strokeWidth="1.5" filter="url(#svgGlowGreen)" />
+                      <foreignObject x="-10" y="-10" width="20" height="20" className="pointer-events-none">
+                        <Layers className="h-5 w-5 text-white" />
                       </foreignObject>
                     </>
                   )}
-                  <text y="45" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold" className="font-mono">payment-service</text>
+                  <text y="40" textAnchor="middle" fill="#ffffff" fontSize="9" fontWeight="bold" className="font-mono">payment-service</text>
                 </g>
 
                 {/* Node 3: auth-service */}
                 <g transform="translate(400, 75)">
-                  {!isLatencyScenario ? (
+                  {!isLatencyScenario && !isThrottlingScenario ? (
                     <>
                       <circle 
-                        r="30" 
+                        r="26" 
                         fill={isExecuted ? "url(#gradGreen)" : "url(#gradRose)"} 
                         stroke={isExecuted ? "#10b981" : "#f43f5e"} 
-                        strokeWidth="2.5" 
+                        strokeWidth="2" 
                         filter={isExecuted ? "url(#svgGlowGreen)" : "url(#svgGlowRose)"}
-                        className={isExecuted ? "" : "animate-pulse"} 
                       />
-                      <foreignObject x="-12" y="-12" width="24" height="24" className="pointer-events-none">
-                        <ShieldAlert className={`h-6 w-6 text-white ${isExecuted ? "" : "animate-bounce"}`} />
+                      <foreignObject x="-10" y="-10" width="20" height="20" className="pointer-events-none">
+                        <ShieldAlert className={`h-5 w-5 text-white ${isExecuted ? "" : "animate-bounce"}`} />
                       </foreignObject>
                     </>
                   ) : (
                     <>
-                      <circle r="30" fill="url(#gradBlue)" stroke="#3b82f6" strokeWidth="2" filter="url(#svgGlowBlue)" />
-                      <foreignObject x="-12" y="-12" width="24" height="24" className="pointer-events-none">
-                        <ShieldAlert className="h-6 w-6 text-white" />
+                      <circle r="26" fill="url(#gradBlue)" stroke="#3b82f6" strokeWidth="1.5" filter="url(#svgGlowBlue)" />
+                      <foreignObject x="-10" y="-10" width="20" height="20" className="pointer-events-none">
+                        <ShieldAlert className="h-5 w-5 text-white" />
                       </foreignObject>
                     </>
                   )}
-                  <text y="45" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold" className="font-mono">auth-service</text>
+                  <text y="40" textAnchor="middle" fill="#ffffff" fontSize="9" fontWeight="bold" className="font-mono">auth-service</text>
                 </g>
 
                 {/* Node 4: Database / Cache */}
                 <g transform="translate(520, 75)">
                   {isLatencyScenario ? (
-                    // Postgres DB Node (Latency target)
                     <>
                       <circle 
-                        r="26" 
+                        r="24" 
                         fill={isExecuted ? "url(#gradGreen)" : "url(#gradAmber)"} 
                         stroke={isExecuted ? "#10b981" : "#f59e0b"} 
-                        strokeWidth="2" 
+                        strokeWidth="1.5" 
                         filter={isExecuted ? "url(#svgGlowGreen)" : "url(#svgGlowAmber)"}
                       />
-                      <foreignObject x="-12" y="-12" width="24" height="24" className="pointer-events-none">
-                        <Database className="h-6 w-6 text-white" />
+                      <foreignObject x="-10" y="-10" width="20" height="20" className="pointer-events-none">
+                        <Database className="h-5 w-5 text-white" />
                       </foreignObject>
-                      <text y="42" textAnchor="middle" fill="#9ca3af" fontSize="9" fontWeight="bold" className="font-mono">postgres-db</text>
+                      <text y="38" textAnchor="middle" fill="#9ca3af" fontSize="9" fontWeight="bold" className="font-mono">postgres-db</text>
                     </>
                   ) : (
-                    // Redis Cache Node (Error target)
                     <>
                       <circle 
-                        r="26" 
+                        r="24" 
                         fill={isExecuted ? "url(#gradGreen)" : "url(#gradRose)"} 
                         stroke={isExecuted ? "#10b981" : "#f43f5e"} 
-                        strokeWidth="2" 
+                        strokeWidth="1.5" 
                         filter={isExecuted ? "url(#svgGlowGreen)" : "url(#svgGlowRose)"}
                       />
-                      <foreignObject x="-12" y="-12" width="24" height="24" className="pointer-events-none">
-                        <Database className="h-6 w-6 text-white" />
+                      <foreignObject x="-10" y="-10" width="20" height="20" className="pointer-events-none">
+                        <Database className="h-5 w-5 text-white" />
                       </foreignObject>
-                      <text y="42" textAnchor="middle" fill="#9ca3af" fontSize="9" fontWeight="bold" className="font-mono">redis-cache</text>
+                      <text y="38" textAnchor="middle" fill="#9ca3af" fontSize="9" fontWeight="bold" className="font-mono">{isThrottlingScenario ? "postgres-db" : "redis-cache"}</text>
                     </>
                   )}
                 </g>
@@ -616,100 +624,99 @@ export default function IncidentRoomPage() {
           </div>
 
           {/* Navigation Tab Header for Left Pane */}
-          <div className="flex border-b border-gray-800">
+          <div className="flex border-b border-white/5">
             <button
               onClick={() => setActiveTab("terminal")}
-              className={`py-3 px-6 text-sm font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+              className={`py-3 px-5 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-all cursor-pointer ${
                 activeTab === "terminal" 
-                  ? "border-blue-500 text-blue-400" 
-                  : "border-transparent text-gray-400 hover:text-gray-200"
+                  ? "border-blue-500 text-blue-400 font-bold" 
+                  : "border-transparent text-gray-400 hover:text-gray-250"
               }`}
             >
-              <Terminal className="h-4 w-4" /> Agent Terminal Console
+              <Terminal className="h-4 w-4" /> Agent Console
             </button>
             
             <button
               onClick={() => setActiveTab("splunk")}
-              className={`py-3 px-6 text-sm font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+              className={`py-3 px-5 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-all cursor-pointer ${
                 activeTab === "splunk" 
-                  ? "border-blue-500 text-blue-400" 
-                  : "border-transparent text-gray-400 hover:text-gray-200"
+                  ? "border-blue-500 text-blue-400 font-bold" 
+                  : "border-transparent text-gray-400 hover:text-gray-250"
               }`}
             >
-              <Search className="h-4 w-4" /> Splunk MCP Query Logs ({state.splunk_queries.length})
+              <Search className="h-4 w-4" /> Splunk MCP Logs ({state.splunk_queries.length})
             </button>
 
             <button
               onClick={() => setActiveTab("audit")}
-              className={`py-3 px-6 text-sm font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+              className={`py-3 px-5 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-all cursor-pointer ${
                 activeTab === "audit" 
-                  ? "border-blue-500 text-blue-400" 
-                  : "border-transparent text-gray-400 hover:text-gray-200"
+                  ? "border-blue-500 text-blue-400 font-bold" 
+                  : "border-transparent text-gray-400 hover:text-gray-250"
               }`}
             >
-              <FileText className="h-4 w-4" /> Splunk Audit Trail ({state.audit_logs.length})
+              <FileText className="h-4 w-4" /> Audit index=sre_audit ({state.audit_logs.length})
             </button>
 
             <button
               onClick={() => setActiveTab("slack")}
-              className={`py-3 px-6 text-sm font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+              className={`py-3 px-5 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-all cursor-pointer ${
                 activeTab === "slack" 
-                  ? "border-blue-500 text-blue-400" 
-                  : "border-transparent text-gray-400 hover:text-gray-200"
+                  ? "border-blue-500 text-blue-400 font-bold" 
+                  : "border-transparent text-gray-400 hover:text-gray-250"
               }`}
             >
-              <MessageSquare className="h-4 w-4 text-purple-400" /> ChatOps Slack Alert
+              <MessageSquare className="h-4 w-4 text-purple-400" /> ChatOps Simulation
             </button>
           </div>
 
           {/* Tab Content 1: Terminal Console */}
           {activeTab === "terminal" && (
-            <div className="glass-panel rounded-2xl flex-1 flex flex-col h-[500px] border-gray-800 overflow-hidden relative">
+            <div className="glass-panel flex-1 flex flex-col h-[480px] overflow-hidden relative">
               <div className="terminal-scanline"></div>
               {/* Terminal header */}
-              <div className="bg-gray-950 px-4 py-2 flex items-center justify-between border-b border-gray-900 text-xs font-mono text-gray-500">
-                <span>TERMINAL STATE LOGGER: INCIDENT_MONITOR_FLOW</span>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span>
+              <div className="bg-[#0b0b0e] px-4 py-2 flex items-center justify-between border-b border-white/5 text-[10px] font-mono text-gray-500">
+                <span>LANGGRAPH ACTIVE NODE PROCESS LOGGER</span>
+                <span className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 breathe-dot"></span>
                   STREAMING
                 </span>
               </div>
               
               {/* Terminal Messages Output */}
-              <div className="flex-1 p-6 overflow-y-auto space-y-6 font-mono text-sm">
+              <div className="flex-1 p-5 overflow-y-auto space-y-5 font-mono text-xs sm:text-sm">
                 
                 {/* Alert Warning Box */}
-                <div className="p-4 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+                <div className="p-3.5 rounded-xl bg-rose-500/5 border border-rose-500/10 text-rose-400 flex items-start gap-3">
+                  <AlertCircle className="h-4.5 w-4.5 shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-bold text-white">Alert Trigger Ingested</h3>
-                    <p className="text-xs text-rose-400/80 mt-1">{state.alert_name} (Symptoms: {state.symptoms})</p>
+                    <h3 className="font-semibold text-white text-xs sm:text-sm">Ingested Incident Trigger</h3>
+                    <p className="text-[11px] text-rose-400/80 mt-0.5">{state.alert_name} (Symptoms: {state.symptoms})</p>
                   </div>
                 </div>
 
                 {state.messages.map((msg, index) => {
-                  // Determine Agent coloring styles
                   const isTriage = msg.name === "TriageAgent";
                   const isDiagnose = msg.name === "DiagnosticianAgent";
                   const isRemediate = msg.name === "RemediationAgent";
                   const isAudit = msg.name === "AuditorAgent";
                   const isUser = msg.role === "user";
 
-                  let accentColor = "text-blue-400 bg-blue-500/10 border-blue-500/20";
-                  if (isDiagnose) accentColor = "text-indigo-400 bg-indigo-500/10 border-indigo-500/20";
-                  if (isRemediate) accentColor = "text-amber-400 bg-amber-500/10 border-amber-500/20";
-                  if (isAudit) accentColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
-                  if (isUser) accentColor = "text-purple-400 bg-purple-500/10 border-purple-500/20";
+                  let accentColor = "text-blue-450 bg-blue-500/5 border-blue-500/10";
+                  if (isDiagnose) accentColor = "text-indigo-400 bg-indigo-500/5 border-indigo-500/10";
+                  if (isRemediate) accentColor = "text-amber-400 bg-amber-500/5 border-amber-500/10";
+                  if (isAudit) accentColor = "text-emerald-400 bg-emerald-500/5 border-emerald-500/10";
+                  if (isUser) accentColor = "text-purple-400 bg-purple-500/5 border-purple-500/10";
 
                   return (
-                    <div key={index} className="space-y-2 border-l-2 border-gray-800 pl-4 py-1">
+                    <div key={index} className="space-y-1.5 border-l border-white/5 pl-3 py-0.5">
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded border ${accentColor}`}>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${accentColor}`}>
                           {msg.name || "Agent"}
                         </span>
-                        <span className="text-gray-500 text-xs">t+{index * 30}s</span>
+                        <span className="text-gray-500 text-[10px]">t+{index * 15}s</span>
                       </div>
-                      <div className="text-gray-300 pl-1">
+                      <div className="text-gray-300 pl-0.5">
                         {formatText(msg.content)}
                       </div>
                     </div>
@@ -723,31 +730,31 @@ export default function IncidentRoomPage() {
 
           {/* Tab Content 2: Splunk Query Log */}
           {activeTab === "splunk" && (
-            <div className="glass-panel rounded-2xl flex-1 p-6 border-gray-800 space-y-6 h-[500px] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-gray-800 pb-3">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">Queries Generated & Executed by SRE Team</h3>
-                <span className="text-xs font-semibold px-2 py-1 bg-gray-800 text-gray-400 rounded-lg">Splunk Index Search API</span>
+            <div className="glass-panel flex-1 p-5 space-y-4 h-[480px] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Splunk Processing Language (SPL) Queries</h3>
+                <span className="text-[10px] bg-white/5 text-gray-400 px-2 py-0.5 rounded-full">Splunk Enterprise API</span>
               </div>
 
               {state.splunk_queries.length === 0 ? (
-                <div className="py-20 text-center text-gray-500 font-mono">
-                  No Splunk searches executed yet. Diagnostician Agent will launch queries soon.
+                <div className="py-20 text-center text-gray-500 text-xs font-mono">
+                  No Splunk searches executed yet.
                 </div>
               ) : (
-                <div className="space-y-4 font-mono text-xs">
+                <div className="space-y-3 font-mono text-[11px]">
                   {state.splunk_queries.map((query, idx) => (
-                    <div key={idx} className="bg-gray-950 border border-gray-900 rounded-xl p-4 relative group">
-                      <div className="flex items-center justify-between text-gray-500 mb-2 border-b border-gray-900 pb-1.5">
-                        <span>Search #{idx + 1}</span>
+                    <div key={idx} className="bg-black/35 border border-white/5 rounded-xl p-3.5 relative group">
+                      <div className="flex items-center justify-between text-gray-500 mb-2 border-b border-white/2 pb-1">
+                        <span>Query #{idx + 1}</span>
                         <button
                           onClick={() => copyToClipboard(query, idx)}
-                          className="text-blue-400 hover:text-blue-300 p-1 hover:bg-gray-900 rounded transition-all flex items-center gap-1 cursor-pointer"
+                          className="text-blue-400 hover:text-blue-300 p-0.5 hover:bg-white/5 rounded transition-all flex items-center gap-1 cursor-pointer"
                         >
-                          <Copy className="h-3.5 w-3.5" />
+                          <Copy className="h-3 w-3" />
                           {copiedQueryIndex === idx ? "Copied!" : "Copy"}
                         </button>
                       </div>
-                      <pre className="whitespace-pre-wrap leading-relaxed text-slate-300 font-mono">{highlightSPL(query)}</pre>
+                      <pre className="whitespace-pre-wrap leading-relaxed text-slate-355">{highlightSPL(query)}</pre>
                     </div>
                   ))}
                 </div>
@@ -757,30 +764,30 @@ export default function IncidentRoomPage() {
 
           {/* Tab Content 3: Splunk Audit Trail */}
           {activeTab === "audit" && (
-            <div className="glass-panel rounded-2xl flex-1 p-6 border-gray-800 space-y-6 h-[500px] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-gray-800 pb-3">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">AI Operations Audit Trail</h3>
-                <span className="text-xs font-semibold px-2 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-lg">index=sre_audit</span>
+            <div className="glass-panel flex-1 p-5 space-y-4 h-[480px] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Splunk Audit Index Entries</h3>
+                <span className="text-[10px] bg-emerald-500/5 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">index=sre_audit</span>
               </div>
 
               {state.audit_logs.length === 0 ? (
-                <div className="py-20 text-center text-gray-500 font-mono">
-                  Waiting for Auditor Agent to log final resolution states back into Splunk audit index...
+                <div className="py-20 text-center text-gray-500 text-xs font-mono">
+                  Waiting for incident resolution to log audit trail...
                 </div>
               ) : (
-                <div className="space-y-4 font-mono text-xs">
+                <div className="space-y-3 font-mono text-[11px]">
                   {state.audit_logs.map((log, idx) => (
-                    <div key={idx} className="bg-gray-950 border border-gray-900 rounded-xl p-4 space-y-2">
-                      <div className="flex items-center justify-between text-gray-500 border-b border-gray-900 pb-1.5">
-                        <span className="text-emerald-400 font-bold">Audit Entry #{idx + 1}</span>
+                    <div key={idx} className="bg-black/35 border border-white/5 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between text-gray-500 border-b border-white/2 pb-1">
+                        <span className="text-emerald-400 font-semibold text-xs">Audit Event #{idx + 1}</span>
                         <span>{log.timestamp}</span>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 py-1 text-gray-400">
-                        <div><strong>Agent Name:</strong> {log.agent}</div>
-                        <div><strong>Status:</strong> {log.status}</div>
-                        <div><strong>Tokens Ingested:</strong> {log.tokens_used}</div>
+                      <div className="grid grid-cols-3 gap-2 py-0.5 text-gray-400">
+                        <div><strong>Origin:</strong> {log.agent}</div>
+                        <div><strong>Execution:</strong> {log.status}</div>
+                        <div><strong>Tokens:</strong> {log.tokens_used}</div>
                       </div>
-                      <div className="text-white bg-gray-900 p-2.5 rounded border border-gray-800 whitespace-pre-wrap leading-relaxed">
+                      <div className="text-white bg-black/60 p-2.5 rounded-lg border border-white/5 whitespace-pre-wrap leading-relaxed">
                         {log.action}
                       </div>
                     </div>
@@ -788,429 +795,266 @@ export default function IncidentRoomPage() {
                 </div>
               )}
             </div>
-          )}          {/* Tab Content 4: Slack ChatOps Simulator */}
+          )}
+
+          {/* Tab Content 4: ChatOps Slack Simulator */}
           {activeTab === "slack" && (
-            <div className="glass-panel rounded-2xl flex-1 border-gray-800 h-[580px] overflow-hidden flex flex-row">
+            <div className="glass-panel flex-1 border-white/5 h-[480px] overflow-hidden flex flex-row">
               {/* Slack Workspace Sidebar */}
-              <div className="w-60 bg-[#1a111e] border-r border-[#2d1d33] flex flex-col shrink-0 text-slate-300 select-none hidden md:flex">
-                {/* Workspace Header */}
-                <div className="p-4 border-b border-[#2d1d33] flex items-center justify-between hover:bg-[#2c1b30] cursor-pointer transition-colors group">
+              <div className="w-48 bg-[#160c18] border-r border-[#26152a] flex flex-col shrink-0 text-slate-350 select-none hidden sm:flex">
+                <div className="p-3 border-b border-[#26152a] flex items-center justify-between hover:bg-[#201123] cursor-pointer transition-colors group">
                   <div className="flex flex-col">
-                    <span className="font-bold text-white text-sm flex items-center gap-1.5">
-                      Splunk ChatOps
-                      <ChevronRight className="h-3 w-3 rotate-90 text-slate-400 group-hover:text-white" />
+                    <span className="font-bold text-white text-xs flex items-center gap-1">
+                      Splunk Ops Workspace
                     </span>
-                    <span className="text-[10px] text-[#bca0ca] flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
-                      nishant (on-call)
-                    </span>
-                  </div>
-                  <div className="h-8 w-8 rounded-lg bg-purple-900/50 border border-purple-500/20 flex items-center justify-center text-purple-300 text-xs font-bold font-sans">
-                    S
                   </div>
                 </div>
                 
-                {/* Sidebar Items */}
-                <div className="flex-1 overflow-y-auto py-4 space-y-4 text-xs font-sans">
-                  {/* Channels Section */}
-                  <div className="space-y-0.5">
-                    <div className="px-4 py-1 text-[#bca0ca] font-bold uppercase text-[9px] tracking-wider flex items-center justify-between">
-                      <span>Channels</span>
-                      <span className="text-xs hover:text-white cursor-pointer">+</span>
-                    </div>
-                    <div className="px-4 py-1.5 bg-[#1164a3]/20 text-white font-bold flex items-center gap-1.5 border-l-4 border-[#1164a3] cursor-pointer">
-                      <Hash className="h-3.5 w-3.5 text-[#bca0ca]" />
-                      <span>incident-alerts</span>
-                      <span className="ml-auto bg-rose-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">1</span>
-                    </div>
-                    <div className="px-4 py-1.5 flex items-center gap-1.5 hover:bg-[#350d36] hover:text-white cursor-pointer rounded-r-md">
-                      <Hash className="h-3.5 w-3.5 text-slate-400" />
-                      <span>ops-warroom</span>
-                    </div>
-                    <div className="px-4 py-1.5 flex items-center gap-1.5 hover:bg-[#350d36] hover:text-white cursor-pointer rounded-r-md">
-                      <Hash className="h-3.5 w-3.5 text-slate-400" />
-                      <span>deployments</span>
-                    </div>
+                {/* Slack channels list */}
+                <div className="flex-1 py-3 overflow-y-auto space-y-1">
+                  <div className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Channels</div>
+                  <div className="px-2.5 py-1 text-slate-400 bg-white/5 font-semibold text-xs rounded mx-1.5 flex items-center gap-1.5 cursor-pointer">
+                    <Hash className="h-3.5 w-3.5 shrink-0" />
+                    <span>ops-war-room</span>
                   </div>
-
-                  {/* Direct Messages Section */}
-                  <div className="space-y-0.5">
-                    <div className="px-4 py-1 text-[#bca0ca] font-bold uppercase text-[9px] tracking-wider flex items-center justify-between">
-                      <span>Direct Messages</span>
-                      <span className="text-xs hover:text-white cursor-pointer">+</span>
-                    </div>
-                    <div className="px-4 py-1.5 flex items-center gap-2 hover:bg-[#350d36] hover:text-white cursor-pointer rounded-r-md">
-                      <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0"></span>
-                      <span className="font-bold text-white">Auto-SRE Bot</span>
-                      <span className="bg-gray-800 text-[9px] text-gray-400 px-1 py-0.2 rounded font-mono">APP</span>
-                    </div>
-                    <div className="px-4 py-1.5 flex items-center gap-2 hover:bg-[#350d36] hover:text-white cursor-pointer rounded-r-md">
-                      <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0"></span>
-                      <span>pagerduty-bot</span>
-                    </div>
-                    <div className="px-4 py-1.5 flex items-center gap-2 hover:bg-[#350d36] hover:text-white cursor-pointer rounded-r-md">
-                      <span className="h-2 w-2 rounded bg-amber-400 shrink-0"></span>
-                      <span>Splunk MCP Server</span>
-                    </div>
+                  <div className="px-2.5 py-1 text-slate-400 font-medium text-xs hover:bg-white/2 rounded mx-1.5 flex items-center gap-1.5 cursor-pointer">
+                    <Hash className="h-3.5 w-3.5 shrink-0" />
+                    <span>alerts-sre</span>
+                  </div>
+                  <div className="px-2.5 py-1 text-slate-400 font-medium text-xs hover:bg-white/2 rounded mx-1.5 flex items-center gap-1.5 cursor-pointer">
+                    <Hash className="h-3.5 w-3.5 shrink-0" />
+                    <span>general</span>
                   </div>
                 </div>
               </div>
 
-              {/* Slack Chat Window */}
-              <div className="flex-1 bg-[#1a1d21] flex flex-col overflow-hidden text-slate-300 font-sans">
-                {/* Chat Header */}
-                <div className="h-14 border-b border-gray-800/80 px-6 flex items-center justify-between shrink-0 bg-[#1e2226]">
-                  <div className="flex flex-col">
-                    <span className="font-bold text-white text-sm flex items-center gap-1.5">
-                      <Hash className="h-4 w-4 text-slate-400 shrink-0" />
-                      incident-alerts
-                    </span>
-                    <span className="text-[10px] text-slate-400">
-                      ⭐ | 12 members | Auto-SRE operations monitoring & fast validation room.
-                    </span>
+              {/* Slack Chat Area */}
+              <div className="flex-1 flex flex-col bg-[#1d1021] text-xs">
+                {/* Channel Header */}
+                <div className="p-3 border-b border-[#2d1b32] flex items-center justify-between bg-[#190e1c] shrink-0 text-slate-300">
+                  <div className="flex items-center gap-1">
+                    <Hash className="h-4 w-4 font-bold text-white" />
+                    <span className="font-bold text-white">ops-war-room</span>
                   </div>
+                  <span className="text-[10px] text-slate-400">War-Room active | 4 agents online</span>
                 </div>
 
-                {/* Messages Stream */}
-                <div className="flex-1 p-6 overflow-y-auto space-y-6">
-                  
-                  {/* Day Divider */}
-                  <div className="relative flex items-center justify-center my-2">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-gray-800/50"></div>
-                    </div>
-                    <span className="relative bg-[#1a1d21] px-3 text-[10px] font-bold uppercase text-slate-400 tracking-wider font-mono">
-                      Today
-                    </span>
-                  </div>
-
-                  {/* Message 1: Alert Trigger */}
-                  <div className="flex gap-3 text-sm">
-                    <div className="h-9 w-9 rounded-lg bg-red-950 border border-red-500/30 flex items-center justify-center text-red-400 font-bold shrink-0 font-mono">
-                      PD
-                    </div>
-                    <div className="space-y-1 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-white text-xs">pagerduty-bot</span>
-                        <span className="bg-gray-800 text-[9px] text-gray-400 px-1 py-0.2 rounded font-mono">APP</span>
-                        <span className="text-gray-500 text-[10px]">09:12 AM</span>
-                      </div>
-                      <div className="text-gray-300 text-xs leading-relaxed">
-                        <span className="text-rose-400 font-bold">🚨 CRITICAL INCIDENT TRIGGERED:</span> Outage detected on service <code className="bg-gray-950 px-1.5 py-0.5 rounded border border-gray-800 font-mono text-[11px] text-white">{state.service}</code>. Incident room launched. Escalated to primary on-call: <span className="text-blue-400 font-semibold">@nishant</span>.
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Message 2: SRE Bot alert */}
-                  <div className="flex gap-3 text-sm">
-                    <div className="h-9 w-9 rounded-lg bg-purple-900 border border-purple-500/20 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                {/* Slack messages */}
+                <div className="flex-1 p-4 overflow-y-auto space-y-4">
+                  {/* Triage Alert Message */}
+                  <div className="flex gap-2.5 items-start">
+                    <div className="h-8 w-8 rounded bg-rose-600 text-white flex items-center justify-center font-bold font-sans text-xs uppercase shrink-0">
                       SRE
                     </div>
-                    <div className="space-y-2 flex-1">
-                      <div className="flex items-center gap-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5">
                         <span className="font-bold text-white text-xs">Auto-SRE Bot</span>
-                        <span className="bg-purple-950/40 text-purple-300 text-[9px] px-1 py-0.2 rounded font-mono font-bold border border-purple-500/20">APP</span>
-                        <span className="text-gray-500 text-[10px]">09:15 AM</span>
+                        <span className="text-[10px] text-slate-400">12:05 PM</span>
                       </div>
-                      
-                      {/* Interactive Slack Message Attachment */}
-                      <div className={`border-l-4 ${isLatencyScenario ? "border-amber-500" : "border-rose-500"} bg-gray-900/60 p-4 rounded-r-xl border border-y-gray-800/60 border-r-gray-800/60 space-y-3 max-w-xl`}>
-                        <div className="font-bold text-white text-sm flex items-center gap-1.5">
-                          {isLatencyScenario ? "⚠️ Performance Degradation Alert" : "🔴 Production Service Failure Alert"}
+                      <div className="p-3 bg-[#26152c] rounded-lg border border-[#3c1f44] text-slate-200 max-w-lg space-y-2">
+                        <div className="font-semibold text-rose-400 flex items-center gap-1">
+                          <AlertTriangle className="h-3.5 w-3.5" /> CRITICAL ALERT: {state.alert_name}
                         </div>
-                        <div className="text-xs text-gray-300 space-y-1.5">
-                          <div><strong>Incident ID:</strong> <span className="font-mono text-white text-[11px]">{state.incident_id.substring(0, 12)}...</span></div>
-                          <div><strong>Service:</strong> <code className="bg-gray-950 px-1.5 py-0.5 rounded border border-gray-850 font-mono text-emerald-400">{state.service}</code></div>
-                          <div><strong>Alert Name:</strong> <span className="text-gray-200">{state.alert_name}</span></div>
-                          <div><strong>Symptoms:</strong> <span className="text-gray-300">{state.symptoms}</span></div>
+                        <p className="text-[11px]">
+                          <strong>Service:</strong> {state.service || "Evaluating..."}<br />
+                          <strong>Symptoms:</strong> {state.symptoms}
+                        </p>
+                        <div className="text-[10px] text-slate-400 border-t border-[#3c1f44] pt-1.5 mt-1.5">
+                          Triage node completed. Transitioned to <strong>DIAGNOSE</strong> node.
                         </div>
-
-                        {state.diagnosis && (
-                          <div className="bg-[#1e2226] p-3 rounded-lg border border-gray-800/80 text-[11px] text-gray-400 leading-relaxed font-mono">
-                            <span className="text-purple-400 font-bold block mb-1">🤖 AGENT DIAGNOSIS:</span>
-                            {state.diagnosis.substring(0, 240)}...
-                          </div>
-                        )}
-
-                        {state.user_approval_needed && state.proposed_remediation.options ? (
-                          <div className="space-y-3 pt-2">
-                            <div className="text-[11px] text-amber-400 font-bold flex items-center gap-1.5">
-                              <ShieldAlert className="h-3.5 w-3.5" /> Action Required: Authorize remediation to resolve incident
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {state.proposed_remediation.options.map((option: any, oIdx: number) => (
-                                <button
-                                  key={oIdx}
-                                  onClick={() => handleAction("approve", option)}
-                                  className="px-3 py-1.5 bg-[#2eb67d] hover:bg-[#259b69] text-white rounded font-bold text-xs cursor-pointer shadow transition-all active:scale-95"
-                                >
-                                  Approve: {option.title}
-                                </button>
-                              ))}
-                              <button
-                                onClick={() => handleAction("reject")}
-                                className="px-3 py-1.5 bg-[#e01e5a] hover:bg-[#c1154c] text-white rounded font-bold text-xs cursor-pointer shadow transition-all active:scale-95"
-                              >
-                                Reject & Escalate
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="pt-2">
-                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
-                              state.remediation_status === "executed"
-                                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                                : (state.remediation_status === "rejected" ? "bg-rose-500/10 border-rose-500/20 text-rose-400" : "bg-blue-500/10 border-blue-500/20 text-blue-400")
-                            }`}>
-                              <span className={`h-1.5 w-1.5 rounded-full ${state.remediation_status === "executed" ? "bg-emerald-400" : (state.remediation_status === "rejected" ? "bg-rose-400" : "bg-blue-400 animate-pulse")}`}></span>
-                              Incident Status: {state.remediation_status.toUpperCase()}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Emoji Reactions Row */}
-                      <div className="flex gap-1.5 pt-1.5 select-none">
-                        <button 
-                          onClick={() => toggleReaction("thumbsUp")}
-                          className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-semibold transition-all cursor-pointer ${
-                            reactions.thumbsUp.clicked 
-                              ? "bg-[#1164a3]/20 border-[#1164a3] text-blue-400" 
-                              : "bg-gray-900 border-gray-800 text-slate-400 hover:border-slate-600 hover:text-white"
-                          }`}
-                        >
-                          <span>👍</span>
-                          <span className="text-[10px]">{reactions.thumbsUp.count}</span>
-                        </button>
-                        <button 
-                          onClick={() => toggleReaction("eyes")}
-                          className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-semibold transition-all cursor-pointer ${
-                            reactions.eyes.clicked 
-                              ? "bg-[#1164a3]/20 border-[#1164a3] text-blue-400" 
-                              : "bg-gray-900 border-gray-800 text-slate-400 hover:border-slate-600 hover:text-white"
-                          }`}
-                        >
-                          <span>👀</span>
-                          <span className="text-[10px]">{reactions.eyes.count}</span>
-                        </button>
-                        <button 
-                          onClick={() => toggleReaction("fire")}
-                          className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-semibold transition-all cursor-pointer ${
-                            reactions.fire.clicked 
-                              ? "bg-[#1164a3]/20 border-[#1164a3] text-blue-400" 
-                              : "bg-gray-900 border-gray-800 text-slate-400 hover:border-slate-600 hover:text-white"
-                          }`}
-                        >
-                          <span>🔥</span>
-                          <span className="text-[10px]">{reactions.fire.count}</span>
-                        </button>
-                        <button 
-                          onClick={() => toggleReaction("heart")}
-                          className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-semibold transition-all cursor-pointer ${
-                            reactions.heart.clicked 
-                              ? "bg-[#1164a3]/20 border-[#1164a3] text-blue-400" 
-                              : "bg-gray-900 border-gray-800 text-slate-400 hover:border-slate-600 hover:text-white"
-                          }`}
-                        >
-                          <span>💚</span>
-                          <span className="text-[10px]">{reactions.heart.count}</span>
-                        </button>
                       </div>
                     </div>
                   </div>
 
+                  {/* Diagnostician Analysis Message */}
+                  {state.diagnosis && (
+                    <div className="flex gap-2.5 items-start">
+                      <div className="h-8 w-8 rounded bg-indigo-650 text-white flex items-center justify-center font-bold font-sans text-xs uppercase shrink-0">
+                        DIAG
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-white text-xs">Diagnostician Agent</span>
+                          <span className="text-[10px] text-slate-400">12:06 PM</span>
+                        </div>
+                        <div className="p-3 bg-[#26152c] rounded-lg border border-[#3c1f44] text-slate-200 max-w-lg space-y-1.5">
+                          <div className="font-semibold text-indigo-400">Root Cause Analysis Complete</div>
+                          <p className="text-[11px] whitespace-pre-wrap leading-relaxed bg-black/25 p-2 rounded border border-[#3c1f44]/50 font-mono text-[10px] text-slate-300">
+                            {state.diagnosis.substring(0, 300)}...
+                          </p>
+                          <div className="text-[10px] text-slate-400">
+                            Splunk query scan completed (executed {state.splunk_queries.length} searches). Handing off to <strong>REMEDIATION</strong> agent.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Remediation approval message */}
+                  {state.proposed_remediation?.options && state.proposed_remediation.options.length > 0 && (
+                    <div className="flex gap-2.5 items-start">
+                      <div className="h-8 w-8 rounded bg-amber-600 text-white flex items-center justify-center font-bold font-sans text-xs uppercase shrink-0">
+                        REM
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-white text-xs">Remediation Agent</span>
+                          <span className="text-[10px] text-slate-400">12:06 PM</span>
+                        </div>
+                        
+                        <div className="p-3 bg-[#26152c] rounded-lg border border-[#3c1f44] text-slate-200 max-w-lg space-y-2">
+                          <div className="font-semibold text-amber-400 flex items-center gap-1">
+                            <ShieldAlert className="h-3.5 w-3.5" /> SRE Operator Authorization Requested
+                          </div>
+                          <p className="text-[11px]">
+                            Proposed safe operations to mitigate {state.service}. Select approval option:
+                          </p>
+
+                          {/* Options render */}
+                          <div className="space-y-1.5 pt-1">
+                            {state.proposed_remediation.options.map((opt, i) => (
+                              <div key={i} className="flex items-center justify-between bg-black/25 p-2 rounded border border-[#3c1f44]/40">
+                                <span className="font-medium text-[10px]">{opt.title}</span>
+                                {state.remediation_status === "pending" ? (
+                                  <button
+                                    onClick={() => handleAction("approve", opt)}
+                                    className="bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] px-2 py-0.5 rounded font-bold transition-all cursor-pointer"
+                                  >
+                                    Authorize
+                                  </button>
+                                ) : (
+                                  <span className="text-[9px] text-slate-500 italic">Locked</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="text-[10px] text-slate-400 border-t border-[#3c1f44] pt-1.5 mt-1">
+                            Status: <span className="font-semibold text-white uppercase">{state.remediation_status}</span>
+                          </div>
+                        </div>
+
+                        {/* Slack Reactions */}
+                        <div className="flex gap-1.5 pt-1">
+                          <button 
+                            onClick={() => toggleReaction("thumbsUp")}
+                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] cursor-pointer ${
+                              reactions.thumbsUp.clicked ? "bg-[#3e1b4c] border-[#8a4d9c] text-white" : "bg-black/15 border-transparent text-slate-400"
+                            }`}
+                          >
+                            <span>👍</span> {reactions.thumbsUp.count}
+                          </button>
+                          <button 
+                            onClick={() => toggleReaction("eyes")}
+                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] cursor-pointer ${
+                              reactions.eyes.clicked ? "bg-[#3e1b4c] border-[#8a4d9c] text-white" : "bg-black/15 border-transparent text-slate-400"
+                            }`}
+                          >
+                            <span>👀</span> {reactions.eyes.count}
+                          </button>
+                          <button 
+                            onClick={() => toggleReaction("fire")}
+                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] cursor-pointer ${
+                              reactions.fire.clicked ? "bg-[#3e1b4c] border-[#8a4d9c] text-white" : "bg-black/15 border-transparent text-slate-400"
+                            }`}
+                          >
+                            <span>🔥</span> {reactions.fire.count}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Message Input Container */}
-                <div className="p-4 bg-[#1e2226] border-t border-gray-800/80 shrink-0">
-                  <div className="border border-gray-800 rounded-lg bg-gray-950 overflow-hidden focus-within:border-gray-700 transition-colors flex flex-col">
-                    {/* Mock Text Toolbar */}
-                    <div className="flex gap-3 px-3 py-1.5 border-b border-gray-900 text-slate-400">
-                      <Bold className="h-3.5 w-3.5 hover:text-white cursor-pointer" />
-                      <Italic className="h-3.5 w-3.5 hover:text-white cursor-pointer" />
-                      <Code className="h-3.5 w-3.5 hover:text-white cursor-pointer" />
-                      <List className="h-3.5 w-3.5 hover:text-white cursor-pointer" />
-                      <span className="text-gray-800">|</span>
-                      <Paperclip className="h-3.5 w-3.5 hover:text-white cursor-pointer" />
-                      <Smile className="h-3.5 w-3.5 hover:text-white cursor-pointer" />
-                    </div>
-                    {/* Input field */}
-                    <div className="flex items-center px-4 py-2 bg-transparent text-sm">
-                      <input 
-                        type="text" 
-                        placeholder="Reply to Auto-SRE Bot... (Read-Only in Alert Room)" 
-                        className="w-full bg-transparent border-none outline-none text-slate-300 placeholder-slate-500 py-1"
-                        disabled
-                      />
-                      <button className="p-1 text-slate-600 cursor-not-allowed ml-2 shrink-0">
-                        <Send className="h-4 w-4" />
-                      </button>
+                {/* Slack Footer Inputs */}
+                <div className="p-3 border-t border-[#2d1b32] bg-[#190e1c] flex items-center gap-2 shrink-0">
+                  <div className="flex-1 bg-[#26152b] border border-[#3a1f42] rounded-xl px-3 py-2 flex items-center justify-between text-slate-400">
+                    <span>Send message to SRE team...</span>
+                    <div className="flex gap-2">
+                      <Smile className="h-4 w-4 hover:text-white cursor-pointer" />
+                      <Paperclip className="h-4 w-4 hover:text-white cursor-pointer" />
                     </div>
                   </div>
+                  <button className="p-2.5 bg-[#5e316a] hover:bg-[#6f3a7d] text-white rounded-xl cursor-pointer">
+                    <Send className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </div>
             </div>
           )}
-
         </div>
 
-        {/* Right Pane - Action, Remediation & Approvals (4/12 Columns) */}
-        <div className="lg:col-span-4 space-y-6">
+        {/* Right Pane - APM Graphs & Remediation Decisions (4/12 Columns) */}
+        <div className="lg:col-span-4 flex flex-col gap-6">
           
-          {/* Action Center Card */}
-          <div className="glass-panel rounded-2xl p-6 border-gray-800 space-y-6">
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-gray-800 pb-3">
-              <Layers className="h-4 w-4 text-blue-400" /> SRE Action Center
-            </h2>
-
-            {/* Current Phase Tracker */}
-            <div className="space-y-4">
-              <h3 className="text-xs font-semibold text-gray-400 uppercase">Remediation Status</h3>
-              
-              <div className="flex items-center gap-3 bg-gray-900/40 p-4 rounded-xl border border-gray-800">
-                {state.remediation_status === "executed" && (
-                  <>
-                    <CheckCircle className="h-8 w-8 text-emerald-400 shrink-0" />
-                    <div>
-                      <h4 className="font-bold text-white">System Recovered</h4>
-                      <p className="text-xs text-gray-400">Self-healing remediation applied and audited.</p>
-                    </div>
-                  </>
-                )}
-                {state.remediation_status === "rejected" && (
-                  <>
-                    <XCircle className="h-8 w-8 text-rose-400 shrink-0" />
-                    <div>
-                      <h4 className="font-bold text-white">Action Denied</h4>
-                      <p className="text-xs text-gray-400">Remediation rejected by SRE operator.</p>
-                    </div>
-                  </>
-                )}
-                {state.remediation_status === "pending" && !state.user_approval_needed && (
-                  <>
-                    <div className="h-6 w-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0"></div>
-                    <div>
-                      <h4 className="font-bold text-white">Investigating Logs...</h4>
-                      <p className="text-xs text-gray-400">Triage & Diagnostician agents analyzing Splunk.</p>
-                    </div>
-                  </>
-                )}
-                {state.remediation_status === "pending" && state.user_approval_needed && (
-                  <>
-                    <ShieldAlert className="h-8 w-8 text-amber-500 shrink-0 animate-bounce" />
-                    <div>
-                      <h4 className="font-bold text-white">Confirmation Required</h4>
-                      <p className="text-xs text-gray-400">Waiting for operator approval of proposed fix.</p>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* PagerDuty On-Call Integration Panel */}
-            <div className="border-t border-gray-850 pt-4 space-y-2.5">
-              <h3 className="text-xs font-semibold text-gray-400 uppercase">On-Call Escalation (PagerDuty)</h3>
-              <div className="flex items-center justify-between text-xs bg-gray-950/50 p-3 rounded-lg border border-gray-900">
-                <div className="flex items-center gap-2">
-                  <div className="h-6 w-6 rounded-full bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold text-[10px]">
-                    N
-                  </div>
-                  <span className="text-white font-medium">Nishant (Primary On-Call)</span>
-                </div>
-                <span className="text-emerald-400 font-bold font-mono">ACKNOWLEDGED</span>
-              </div>
-            </div>
-
-            {/* Proposed Remediation Plan */}
-            {state.proposed_remediation.options && (
-              <div className="bg-gray-950 p-4 rounded-xl border border-gray-900 space-y-3 font-mono text-xs">
-                <h4 className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Active Options Count: {state.proposed_remediation.options.length}</h4>
-                <div className="space-y-1.5 text-gray-400">
-                  <div><strong>Remedy A:</strong> {state.proposed_remediation.options[0].action_type}</div>
-                  <div><strong>Remedy B:</strong> {state.proposed_remediation.options[1]?.action_type || "N/A"}</div>
-                </div>
-              </div>
-            )}
-
-            {/* Human-in-the-Loop Approval Block */}
-            {state.user_approval_needed && state.proposed_remediation.options && (
-              <div className="p-5 border rounded-2xl glow-border-amber bg-amber-500/5 space-y-4">
-                <div className="flex items-start gap-2.5">
-                  <ShieldAlert className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                  <div>
-                    <h3 className="text-sm font-bold text-white">Authorize Safe Remediation</h3>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Remediation Agent requires human authorization. Select one of the compiled recovery plans below:
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-3 pt-1">
-                  {state.proposed_remediation.options.map((option: any, oIdx: number) => {
-                    const isSql = option.action_type === "execute_sql";
-                    return (
-                      <button
-                        key={oIdx}
-                        onClick={() => handleAction("approve", option)}
-                        className="w-full text-left p-3 rounded-xl border border-gray-800 hover:border-blue-500/50 bg-gray-950/70 hover:bg-gray-900 transition-all group flex flex-col cursor-pointer"
-                      >
-                        <span className="text-xs font-bold text-white group-hover:text-blue-400 transition-colors">
-                          {option.title}
-                        </span>
-                        {isSql ? (
-                          <code className="mt-2 text-[9px] text-emerald-400 bg-gray-950 p-2 rounded border border-gray-900 whitespace-pre-wrap select-all font-mono">
-                            {option.value}
-                          </code>
-                        ) : (
-                          <span className="mt-1 text-[10px] text-gray-400 font-mono">
-                            revert: {option.target}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-
-                  <button
-                    onClick={() => handleAction("reject")}
-                    className="w-full py-2.5 px-4 bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 hover:text-rose-300 rounded-xl font-semibold text-xs border border-rose-500/20 cursor-pointer active:scale-95 transition-all text-center"
-                  >
-                    Reject Plans (Cancel Incident)
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Live Telemetry Chart */}
+          {/* APM Graph Widget */}
           {renderMetricsChart()}
 
-          {/* Diagnostic Information Card */}
-          <div className="glass-panel rounded-2xl p-6 border-gray-800 space-y-4">
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-gray-800 pb-3">
-              <ChevronRight className="h-4 w-4 text-blue-400" /> Alert Blast Radius
-            </h2>
-            
-            <div className="space-y-3 text-xs leading-relaxed text-gray-400">
-              <div>
-                <strong className="text-gray-300">Target Alert:</strong>
-                <p className="mt-1 text-white bg-gray-950 p-2 rounded border border-gray-900 font-mono">{state.alert_name}</p>
-              </div>
-              <div>
-                <strong className="text-gray-300">Symptoms:</strong>
-                <p className="mt-1 text-gray-300">{state.symptoms}</p>
-              </div>
-              <div>
-                <strong className="text-gray-300">Root-Cause Analysis (RCA):</strong>
-                <p className="mt-1 text-gray-300 leading-relaxed bg-gray-950/50 p-3 rounded-lg border border-gray-800">
-                  {state.diagnosis || "Triage & Diagnostician agents are actively scanning logs to isolate root cause. Monitor the terminal stream for progress."}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Git Diff Root Cause Viewer */}
+          {/* Root-cause Commit diff */}
           {renderGitDiff()}
 
+          {/* Remediation Decision Board */}
+          <div className="glass-panel p-5 space-y-4">
+            <h2 className="text-xs font-semibold text-white uppercase tracking-wider border-b border-white/5 pb-2">
+              Remediation Action Room
+            </h2>
+            
+            {state.remediation_status === "pending" ? (
+              <div className="space-y-4">
+                <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/10 text-amber-400 text-xs leading-relaxed space-y-1">
+                  <p className="font-semibold text-white flex items-center gap-1">
+                    <ShieldAlert className="h-3.5 w-3.5" /> Authorization Needed
+                  </p>
+                  <p className="text-[11px] text-amber-400/80">
+                    Remediation actions require engineer confirmation before being dispatched to targets.
+                  </p>
+                </div>
+
+                {state.proposed_remediation.options && state.proposed_remediation.options.map((opt, i) => (
+                  <div key={i} className="bg-black/35 rounded-xl border border-white/5 p-4 flex flex-col justify-between space-y-3">
+                    <div>
+                      <h4 className="font-semibold text-white text-xs">{opt.title}</h4>
+                      <p className="text-gray-400 text-[10px] mt-1 font-mono break-all">{opt.value}</p>
+                    </div>
+                    <button
+                      onClick={() => handleAction("approve", opt)}
+                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-2 px-3 rounded-xl transition-all cursor-pointer active:scale-98"
+                    >
+                      Approve Remediation
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  onClick={() => handleAction("reject")}
+                  className="w-full border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500/10 text-rose-400 text-xs font-bold py-2 px-3 rounded-xl transition-all cursor-pointer active:scale-98"
+                >
+                  Reject Options & Suspend
+                </button>
+              </div>
+            ) : (
+              <div className="py-6 text-center text-gray-500 space-y-3">
+                {state.remediation_status === "executed" ? (
+                  <>
+                    <CheckCircle className="h-10 w-10 text-emerald-400 mx-auto" />
+                    <div>
+                      <h3 className="font-semibold text-white text-xs">Remediation Executed</h3>
+                      <p className="text-[10px] text-gray-500 mt-1">Actions successfully pushed. Telemetry returned to normal.</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-10 w-10 text-rose-400 mx-auto" />
+                    <div>
+                      <h3 className="font-semibold text-white text-xs">Remediation Suspended</h3>
+                      <p className="text-[10px] text-gray-500 mt-1">The proposed solutions were rejected. Operator holds controls.</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          
         </div>
 
       </div>
