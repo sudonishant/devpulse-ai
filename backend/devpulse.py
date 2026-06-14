@@ -178,9 +178,10 @@ async def call_provider_llm(provider: str, api_key: str, system_prompt: str, use
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": user_prompt}
                         ],
-                        "temperature": 0.1
+                        "temperature": 0.1,
+                        "max_tokens": 2048
                     }
-                    resp = await client.post("https://openrouter.ai/api/v1/chat/completions", json=body, timeout=40)
+                    resp = await client.post("https://openrouter.ai/api/v1/chat/completions", json=body, headers=headers, timeout=40)
                     
                     if resp.status_code == 200:
                         data = resp.json()
