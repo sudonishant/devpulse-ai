@@ -147,6 +147,14 @@ async def validate_key_endpoint(req: ValidateKeyRequest):
                 headers = {"Authorization": f"Bearer {api_key}"}
                 resp = await client.get("https://huggingface.co/api/whoami-v2", headers=headers, timeout=5)
                 is_valid = (resp.status_code == 200)
+            elif "openrouter" in provider:
+                headers = {
+                    "Authorization": f"Bearer {api_key}",
+                    "HTTP-Referer": "http://localhost:3000",
+                    "X-Title": "DevPulse AI"
+                }
+                resp = await client.get("https://openrouter.ai/api/v1/auth/key", headers=headers, timeout=5)
+                is_valid = (resp.status_code == 200)
             else:
                 is_valid = len(api_key) > 15
     except Exception as e:

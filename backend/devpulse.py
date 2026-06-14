@@ -10,6 +10,25 @@ from langchain_core.messages import SystemMessage, HumanMessage
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("DevPulseAI")
 
+def load_openrouter_keys() -> list:
+    import json
+    keys = []
+    config_path = os.path.join(os.path.dirname(__file__), "openrouter_keys.json")
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r") as f:
+                keys = json.load(f)
+        except Exception as e:
+            logger.error(f"Error loading openrouter_keys.json: {e}")
+    
+    env_keys = os.environ.get("OPENROUTER_KEYS") or os.environ.get("OPENROUTER_API_KEY")
+    if env_keys:
+        for k in env_keys.split(","):
+            k_clean = k.strip()
+            if k_clean and k_clean not in keys:
+                keys.append(k_clean)
+    return keys
+
 def detect_provider_from_key(api_key: str, default_provider: str = "gemini") -> str:
     key = (api_key or "").strip()
     if key.startswith("gsk_"):
@@ -20,6 +39,8 @@ def detect_provider_from_key(api_key: str, default_provider: str = "gemini") -> 
         return "gemini"
     elif key.startswith("AQ"):
         return "cohere"
+    elif key.startswith("sk-or-v1-"):
+        return "openrouter"
     return default_provider
 
 async def call_provider_llm(provider: str, api_key: str, system_prompt: str, user_prompt: str) -> str:
@@ -127,6 +148,54 @@ async def call_provider_llm(provider: str, api_key: str, system_prompt: str, use
                 return data["generated_text"].strip()
             else:
                 return str(data)
+                
+    elif "openrouter" in provider_lower:
+        candidates = []
+        if api_key and api_key.strip():
+            cleaned_key = api_key.strip()
+            candidates.append(cleaned_key)
+        
+        pool = load_openrouter_keys()
+        for k in pool:
+            if k not in candidates:
+                candidates.append(k)
+                
+        last_error = None
+        for candidate_key in candidates:
+            try:
+                async with httpx.AsyncClient() as client:
+                    headers = {
+                        "Authorization": f"Bearer {candidate_key}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "http://localhost:3000",
+                        "X-Title": "DevPulse AI"
+                    }
+                    body = {
+                        "model": "google/gemini-2.5-flash",
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt}
+                        ],
+                        "temperature": 0.1
+                    }
+                    resp = await client.post("https://openrouter.ai/api/v1/chat/completions", json=body, timeout=40)
+                    
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        return data["choices"][0]["message"]["content"]
+                    else:
+                        try:
+                            err_msg = resp.json()["error"]["message"]
+                        except:
+                            err_msg = resp.text
+                        raise RuntimeError(f"OpenRouter API error (status {resp.status_code}): {err_msg}")
+            except Exception as e:
+                logger.warning(f"Failed using OpenRouter key ...{candidate_key[-8:]}: {e}. Retrying next key if available...")
+                last_error = e
+                continue
+                
+        raise RuntimeError(f"All OpenRouter API keys in pool failed. Last error: {last_error}")
+        
     else:
         raise ValueError(f"Unsupported provider: {provider}")
 
@@ -143,6 +212,8 @@ async def run_security_agent(code: str, language: str, api_key: str = None, prov
             effective_key = os.environ.get("COHERE_API_KEY")
         elif "hugging" in p_lower or "hf" in p_lower:
             effective_key = os.environ.get("HUGGINGFACE_API_KEY") or os.environ.get("HF_API_KEY")
+        elif "openrouter" in p_lower:
+            effective_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OR_API_KEY")
             
     provider = detect_provider_from_key(effective_key, provider)
     
@@ -175,6 +246,8 @@ async def run_performance_agent(code: str, language: str, api_key: str = None, p
             effective_key = os.environ.get("COHERE_API_KEY")
         elif "hugging" in p_lower or "hf" in p_lower:
             effective_key = os.environ.get("HUGGINGFACE_API_KEY") or os.environ.get("HF_API_KEY")
+        elif "openrouter" in p_lower:
+            effective_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OR_API_KEY")
             
     provider = detect_provider_from_key(effective_key, provider)
     

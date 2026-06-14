@@ -27,3 +27,6 @@ frontend.log
 # Local Mock database and repo
 *.db
 backend/mcp/code_repo/
+
+# OpenRouter Keys Pool
+backend/openrouter_keys.json

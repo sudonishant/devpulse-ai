@@ -137,7 +137,7 @@ export default function Page() {
   
   // Custom API key configuration states
   const [apiType, setApiType] = useState<"paid" | "free">("paid");
-  const [selectedProvider, setSelectedProvider] = useState<"gemini" | "groq" | "cohere" | "huggingface">("gemini");
+  const [selectedProvider, setSelectedProvider] = useState<"gemini" | "groq" | "cohere" | "openrouter" | "huggingface">("gemini");
   const [validationStatus, setValidationStatus] = useState<"idle" | "verifying" | "success" | "error">("idle");
   const [validationError, setValidationError] = useState("");
 
@@ -149,6 +149,7 @@ export default function Page() {
     if (k.startsWith("hf_")) return "huggingface";
     if (k.startsWith("AIzaSy")) return "gemini";
     if (k.startsWith("AQ")) return "cohere";
+    if (k.startsWith("sk-or-v1-")) return "openrouter";
     return defaultProvider;
   };
 
@@ -1155,6 +1156,7 @@ ${results.refactored_code}
                     <option value="gemini">Google Gemini (Free Tier)</option>
                     <option value="groq">Groq Cloud (Free Key)</option>
                     <option value="cohere">Cohere AI (Trial Token)</option>
+                    <option value="openrouter">OpenRouter AI (Unified API)</option>
                     <option value="huggingface">Hugging Face (Read Token)</option>
                   </select>
                 </div>
@@ -1173,6 +1175,8 @@ ${results.refactored_code}
                         ? "https://console.groq.com/keys"
                         : selectedProvider === "cohere"
                         ? "https://dashboard.cohere.com/api-keys"
+                        : selectedProvider === "openrouter"
+                        ? "https://openrouter.ai/keys"
                         : "https://huggingface.co/settings/tokens"
                     }
                     target="_blank"
