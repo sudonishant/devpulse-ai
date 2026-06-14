@@ -17,13 +17,28 @@ async def call_provider_llm(provider: str, api_key: str, system_prompt: str, use
     if "gemini" in provider_lower:
         from langchain_google_genai import ChatGoogleGenerativeAI
         from langchain_core.messages import SystemMessage, HumanMessage
-        llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", google_api_key=api_key, temperature=0.1)
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_prompt)
-        ]
-        resp = await llm.ainvoke(messages)
-        return str(resp.content)
+        try:
+            llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", google_api_key=api_key, temperature=0.1)
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt)
+            ]
+            resp = await llm.ainvoke(messages)
+            return str(resp.content)
+        except Exception as e:
+            # Fallback to gemini-1.5-flash if gemini-1.5-pro is not found or fails
+            e_str = str(e).lower()
+            if "not found" in e_str or "404" in e_str or "not_supported" in e_str or "not supported" in e_str:
+                logger.warning(f"gemini-1.5-pro failed, falling back to gemini-1.5-flash: {e}")
+                llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=api_key, temperature=0.1)
+                messages = [
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=user_prompt)
+                ]
+                resp = await llm.ainvoke(messages)
+                return str(resp.content)
+            else:
+                raise
         
     elif "groq" in provider_lower:
         async with httpx.AsyncClient() as client:
