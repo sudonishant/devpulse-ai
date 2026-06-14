@@ -45,3 +45,69 @@ DevPulse AI is just getting started. Our roadmap includes:
 1. **GitHub Actions CI/CD Plugin**: An automated runner that executes on every pull request, leaving inline security comments on the exact code lines containing vulnerabilities.
 2. **Multi-File Context Graphing**: Allowing SRE agents to map function imports across multiple project folders, building a holistic dependency tree to find hidden architectural memory leaks.
 3. **IDE Extensions**: Integrating DevPulse AI directly into VS Code and JetBrains IDEs to flag security vulnerabilities and performance bottlenecks as developers write their code.
+
+---
+
+## ⚙️ Step-by-Step Instructions: Running Locally (For Judges)
+To run DevPulse AI locally and test the autonomous agents against provided code evidence, follow these steps:
+
+### 1. Prerequisites
+Ensure you have the following installed on your machine:
+* **Python**: Version 3.10 or higher
+* **Node.js**: Version 18.x or higher
+
+### 2. Setup the Codebase
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/Neeshant01/devpulse-ai.git
+   cd devpulse-ai
+   ```
+
+2. **Backend Setup**:
+   Navigate to the `backend` directory, create and activate a virtual environment, and install dependencies:
+   ```bash
+   cd backend
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+3. **Configure Gemini API Key (Optional)**:
+   ```bash
+   export GEMINI_API_KEY="your-gemini-key"
+   ```
+   *Note: If no API key is set, the platform will automatically detect this and run in a high-fidelity local sandbox mode, serving realistic mock results so you can evaluate the workflow without an API key.*
+
+4. **Frontend Setup**:
+   Open a new terminal, navigate to the `frontend` directory, and install the npm packages:
+   ```bash
+   cd frontend
+   npm install
+   ```
+
+### 3. Start the Application
+From the root of the project, run the startup script to launch both the FastAPI backend and Next.js frontend concurrently:
+```bash
+./run.sh
+```
+* **Local Control Panel UI**: Open [http://localhost:3000](http://localhost:3000) in your browser.
+* **FastAPI Server Endpoint**: [http://localhost:8000](http://localhost:8000)
+
+### 4. Running the Agent Against Provided Evidence
+To verify the autonomous multi-agent analysis:
+1. Open the UI at `http://localhost:3000`.
+2. Paste the following vulnerable code snippet into the editor:
+   ```python
+   def login_user(username, password):
+       import sqlite3
+       conn = sqlite3.connect('users.db')
+       cursor = conn.cursor()
+       query = f"SELECT * FROM accounts WHERE user='{username}' AND pass='{password}'"
+       cursor.execute(query)
+       return cursor.fetchall()
+   ```
+3. Click the **Analyze Code with Multi-Agents** button.
+4. Watch the live agent console stream:
+   * **SecOps-Agent** will analyze the raw query construction via f-strings and flag a critical SQL Injection (SQLi) vulnerability.
+   * **PerfScale-Agent** will detect the database connection creation inside the function call and flag disk I/O latency.
+5. The system will compile the results, calculate a Code Health Score, and render a side-by-side Git Diff with the secure, parameterized, and refactored solution.
