@@ -31,6 +31,8 @@ def load_openrouter_keys() -> list:
 
 def detect_provider_from_key(api_key: str, default_provider: str = "gemini") -> str:
     key = (api_key or "").strip()
+    if key.lower() in ["", "none", "undefined", "null"]:
+        return default_provider
     if key.startswith("gsk_"):
         return "groq"
     elif key.startswith("hf_"):
@@ -202,6 +204,9 @@ async def call_provider_llm(provider: str, api_key: str, system_prompt: str, use
 async def run_security_agent(code: str, language: str, api_key: str = None, provider: str = "gemini") -> str:
     """Invokes SecOps-Agent (Senior Cyber Security Auditor) - STRICTLY LIVE ONLY"""
     effective_key = (api_key or "").strip()
+    if effective_key.lower() in ["", "none", "undefined", "null"]:
+        effective_key = ""
+        
     if not effective_key:
         p_lower = provider.lower()
         if "gemini" in p_lower:
@@ -214,6 +219,10 @@ async def run_security_agent(code: str, language: str, api_key: str = None, prov
             effective_key = os.environ.get("HUGGINGFACE_API_KEY") or os.environ.get("HF_API_KEY")
         elif "openrouter" in p_lower:
             effective_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OR_API_KEY")
+            
+        effective_key = (effective_key or "").strip()
+        if effective_key.lower() in ["", "none", "undefined", "null"]:
+            effective_key = ""
             
     provider = detect_provider_from_key(effective_key, provider)
     
@@ -236,6 +245,9 @@ async def run_security_agent(code: str, language: str, api_key: str = None, prov
 async def run_performance_agent(code: str, language: str, api_key: str = None, provider: str = "gemini") -> str:
     """Invokes PerfScale-Agent (Principal Software Architect) - STRICTLY LIVE ONLY"""
     effective_key = (api_key or "").strip()
+    if effective_key.lower() in ["", "none", "undefined", "null"]:
+        effective_key = ""
+        
     if not effective_key:
         p_lower = provider.lower()
         if "gemini" in p_lower:
@@ -248,6 +260,10 @@ async def run_performance_agent(code: str, language: str, api_key: str = None, p
             effective_key = os.environ.get("HUGGINGFACE_API_KEY") or os.environ.get("HF_API_KEY")
         elif "openrouter" in p_lower:
             effective_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OR_API_KEY")
+            
+        effective_key = (effective_key or "").strip()
+        if effective_key.lower() in ["", "none", "undefined", "null"]:
+            effective_key = ""
             
     provider = detect_provider_from_key(effective_key, provider)
     
