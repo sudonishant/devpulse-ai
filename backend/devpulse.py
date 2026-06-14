@@ -10,6 +10,18 @@ from langchain_core.messages import SystemMessage, HumanMessage
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("DevPulseAI")
 
+def detect_provider_from_key(api_key: str, default_provider: str = "gemini") -> str:
+    key = (api_key or "").strip()
+    if key.startswith("gsk_"):
+        return "groq"
+    elif key.startswith("hf_"):
+        return "huggingface"
+    elif key.startswith("AIzaSy"):
+        return "gemini"
+    elif key.startswith("AQ"):
+        return "cohere"
+    return default_provider
+
 async def call_provider_llm(provider: str, api_key: str, system_prompt: str, user_prompt: str) -> str:
     import httpx
     provider_lower = provider.lower()
@@ -131,6 +143,8 @@ async def run_security_agent(code: str, language: str, api_key: str = None, prov
             effective_key = os.environ.get("COHERE_API_KEY")
         elif "hugging" in p_lower or "hf" in p_lower:
             effective_key = os.environ.get("HUGGINGFACE_API_KEY") or os.environ.get("HF_API_KEY")
+            
+    provider = detect_provider_from_key(effective_key, provider)
     
     if not effective_key:
         raise ValueError(f"Critical Error: {provider.upper()} API key is missing. Live agent execution halted.")
@@ -161,6 +175,8 @@ async def run_performance_agent(code: str, language: str, api_key: str = None, p
             effective_key = os.environ.get("COHERE_API_KEY")
         elif "hugging" in p_lower or "hf" in p_lower:
             effective_key = os.environ.get("HUGGINGFACE_API_KEY") or os.environ.get("HF_API_KEY")
+            
+    provider = detect_provider_from_key(effective_key, provider)
     
     if not effective_key:
         raise ValueError(f"Critical Error: {provider.upper()} API key is missing. Live agent execution halted.")
@@ -226,6 +242,7 @@ def compute_health_and_stats(code: str, sec_report: str, perf_report: str) -> Tu
 
 async def analyze_code(code_content: str, language: str = "python", api_key: str = None, provider: str = "gemini") -> Dict[str, Any]:
     """Runs both agents concurrently and returns structured results."""
+    provider = detect_provider_from_key(api_key, provider)
     logger.info(f"Starting concurrent live agent analysis for {language} code via {provider}...")
     
     # Execute agents concurrently

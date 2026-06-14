@@ -143,6 +143,15 @@ export default function Page() {
 
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
+  const detectProviderFromKey = (key: string, defaultProvider: string): string => {
+    const k = key.trim();
+    if (k.startsWith("gsk_")) return "groq";
+    if (k.startsWith("hf_")) return "huggingface";
+    if (k.startsWith("AIzaSy")) return "gemini";
+    if (k.startsWith("AQ")) return "cohere";
+    return defaultProvider;
+  };
+
   // Load configuration from localStorage on client side
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -154,13 +163,16 @@ export default function Page() {
       const savedType = localStorage.getItem("devpulse_api_type") as any;
       const savedProvider = localStorage.getItem("devpulse_selected_provider") as any;
       
-      if (savedType) setApiType(savedType);
-      if (savedProvider) setSelectedProvider(savedProvider);
-
       if (savedKey && savedKey.trim() !== "") {
         setGeminiApiKey(savedKey);
+        const detected = detectProviderFromKey(savedKey, savedProvider || "gemini");
+        setSelectedProvider(detected as any);
+        const type = (detected === "gemini" && savedKey.startsWith("AIzaSy")) || !savedType ? "paid" : savedType;
+        setApiType(type as any);
         setShowKeyModal(false);
       } else {
+        if (savedType) setApiType(savedType);
+        if (savedProvider) setSelectedProvider(savedProvider);
         setShowKeyModal(true);
       }
     }
@@ -176,12 +188,15 @@ export default function Page() {
       return;
     }
 
+    const detected = detectProviderFromKey(geminiApiKey, apiType === "paid" ? "gemini" : selectedProvider);
+    const type = detected === "gemini" && geminiApiKey.startsWith("AIzaSy") ? "paid" : "free";
+
     try {
       const res = await fetch(`${backendUrl}/api/validate-key`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          provider: apiType === "paid" ? "gemini" : selectedProvider,
+          provider: detected,
           api_key: geminiApiKey
         })
       });
@@ -193,8 +208,11 @@ export default function Page() {
 
       setValidationStatus("success");
       localStorage.setItem("devpulse_gemini_api_key", geminiApiKey);
-      localStorage.setItem("devpulse_api_type", apiType);
-      localStorage.setItem("devpulse_selected_provider", apiType === "paid" ? "gemini" : selectedProvider);
+      localStorage.setItem("devpulse_api_type", type);
+      localStorage.setItem("devpulse_selected_provider", detected);
+      
+      setSelectedProvider(detected as any);
+      setApiType(type as any);
       
       setTimeout(() => {
         setShowKeyModal(false);
@@ -1022,9 +1040,15 @@ ${results.refactored_code}
                 <div className="pt-2">
                   <button
                     onClick={() => {
+                      const detected = detectProviderFromKey(geminiApiKey, selectedProvider);
+                      const type = detected === "gemini" && geminiApiKey.startsWith("AIzaSy") ? "paid" : "free";
                       localStorage.setItem("devpulse_backend_url", backendUrl);
                       localStorage.setItem("devpulse_gemini_api_key", geminiApiKey);
-                      alert("Configuration saved successfully!");
+                      localStorage.setItem("devpulse_selected_provider", detected);
+                      localStorage.setItem("devpulse_api_type", type);
+                      setSelectedProvider(detected as any);
+                      setApiType(type as any);
+                      alert(`Configuration saved successfully! Detected provider: ${detected.toUpperCase()}`);
                     }}
                     className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-semibold text-white transition-all cursor-pointer"
                   >

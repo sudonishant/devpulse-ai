@@ -10,7 +10,7 @@ import asyncio
 # Import agents and state graph
 from backend.agents.graph import get_graph, AgentState, serialize_state
 from langchain_core.messages import AIMessage, HumanMessage
-from backend.devpulse import analyze_code as run_devpulse_analysis
+from backend.devpulse import analyze_code as run_devpulse_analysis, detect_provider_from_key
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("main_server")
@@ -121,8 +121,8 @@ class ValidateKeyRequest(BaseModel):
 
 @app.post("/api/validate-key")
 async def validate_key_endpoint(req: ValidateKeyRequest):
-    provider = req.provider.lower()
     api_key = req.api_key.strip()
+    provider = detect_provider_from_key(api_key, req.provider.lower())
     
     if not api_key:
         raise HTTPException(status_code=400, detail="API Key cannot be empty.")
