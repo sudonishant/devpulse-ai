@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Auto-SRE Run Script
+# DevPulse AI Run Script
 echo "===================================================="
-echo "Starting Auto-SRE Platform for Splunk Hackathon..."
+echo "Starting DevPulse AI Code Reviewer & Security Auditor..."
 echo "===================================================="
 
 # Kill any existing processes running on port 8000 and 3000
@@ -48,7 +48,7 @@ fi
 if [ "$backend_alive" = true ] && [ "$frontend_alive" = true ]; then
    echo ""
    echo "----------------------------------------------------"
-   echo "Auto-SRE Dashboard is ready:"
+   echo "DevPulse AI Dashboard is ready:"
    echo "👉 Local UI:       http://localhost:3000"
    echo "👉 API Endpoint:   http://localhost:8000"
    echo "----------------------------------------------------"

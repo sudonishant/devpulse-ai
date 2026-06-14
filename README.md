@@ -1,69 +1,57 @@
-# 🚀 Auto-SRE: Autonomous Multi-Agent Incident Response & Self-Healing
+# 🚀 DevPulse AI: Autonomous Multi-Agent Code Reviewer & Security Auditor
 
-Auto-SRE is an enterprise-grade, autonomous Site Reliability Engineering (SRE) assistant that automatically triages, diagnoses, and remediates application degradations in minutes instead of hours. Built for the **Splunk Agentic Ops Hackathon 2026**.
+DevPulse AI is a production-ready, autonomous code auditing platform that intercepts vulnerabilities and performance bottlenecks before they hit production. Using parallel agentic reasoning powered by **Google Gemini 1.5 Pro** and **LangChain**, it acts as a digital dual-engine security auditor and systems performance architect.
 
-This platform integrates with **Splunk Model Context Protocol (MCP)** to query application telemetry, traces, and git VCS changes. It uses a **LangGraph State Machine** to coordinate specialized agents, request Human-In-The-Loop approvals, execute DDL schema migrations, perform config rollbacks, and record full audit traces back into Splunk.
-
----
-
-## 🎨 System Walkthrough & Screenshots
-
-### ⏱️ Side-by-Side Comparison (Manual vs. Auto-SRE)
-
-| Step | Manual Investigation (45 - 60 Mins) | Auto-SRE Investigation (2 Mins) |
-| :--- | :--- | :--- |
-| **Triage** | Scroll Slack alerts, find the target microservice, set up a war room. | **Triage Agent** intercepts the alert, maps the service and symptoms in 5 seconds. |
-| **APM / Logs Scan** | Run multiple manual queries on Splunk to check CPU, APM traces, and DB calls. | **Diagnostician Agent** calls Splunk MCP tools to run secure SPL queries automatically. |
-| **VCS Correlation** | Scroll through git history, contact engineers to find recent config changes. | Agent inspects Splunk VCS logs, detects the faulty commit, and outputs a visual **Git Diff**. |
-| **Mitigation** | Manually execute Kubernetes rollbacks or apply DDL index scripts. | **Remediation Agent** proposes recovery paths (e.g. safe SQLite Index vs. Git Rollback) instantly. |
+Built for the live 24-hour hackathon, DevPulse AI provides developers with instant, high-fidelity security patches and low-latency refactored code blocks, visualised on a stunning glassmorphic dashboard.
 
 ---
 
-### 🖥️ 1. Apple-style SRE Control Dashboard (Overview)
-A sleek, glassmorphic overview displaying system health, latency metrics, mean time to resolution (MTTR) stats, and active incident rooms.
-![Dashboard Overview](./frontend/public/dashboard_overview.png)
-
-### 📊 2. Active SRE Incident Investigations Tracker
-Displays multiple triggered and resolved incidents in a live, real-time status table showing active agent nodes.
-![Dashboard Investigations](./frontend/public/dashboard_investigations.png)
-
-### ⚙️ 3. Active Incident Room & Latency Topology
-An interactive workspace displaying real-time agent console logs, SVG network topologies, and live checkout response latency charts.
-![Incident Room Latency](./frontend/public/incident_room_latency.png)
-
-### 💬 4. ChatOps Slack Integration & CPU Throttling
-A live war-room simulation displaying ChatOps notifications from Auto-SRE Bot, alongside current API Gateway CPU loads and HITL authorization options.
-![Incident Room Slack](./frontend/public/incident_room_slack.png)
-
-
----
-
-## 🔄 How It Works
+## 🎨 System Flow Diagram
 
 ```mermaid
 graph TD
-    Alert[Outage Alert] --> Triage[Triage Agent]
-    Triage -->|Blast Radius| Diagnose[Diagnostician Agent]
-    Diagnose -->|Query Splunk APM & VCS| MCP[Splunk MCP Server]
-    MCP -->|Fetch Logs & Traces| Diagnose
-    Diagnose -->|RCA & Diff| Remediate[Remediation Agent]
-    Remediate -->|Slack / UI Gate| HITL{Human Operator Approval}
-    HITL -->|Approved SQL Hotfix| Execute[Apply Index / Rollback]
-    Execute --> Audit[Auditor Agent]
-    Audit -->|Audit Trail index=sre_audit| Splunk[Splunk Cloud]
+    User[Paste Source Code / GitHub URL] -->|Execute Agent Audit| API[FastAPI backend:8000]
+    API -->|Concurrent Async Execution| Core[Multi-Agent Orchestrator]
+    Core -->|Spawn Parallel Agents| Agents{Agent Threads}
+    Agents -->|Agent 1: Security Auditor| SecOps[SecOps-Agent: OWASP Top 10 & API Key Scan]
+    Agents -->|Agent 2: Performance Architect| PerfScale[PerfScale-Agent: Complexity & Memory Profiler]
+    SecOps -->|Generate Severity Marks & Patches| Combiner[Response Compiler]
+    PerfScale -->|Calculate Code Smell & CPU Optimisations| Combiner
+    Combiner -->|JSON Payload| UI[Next.js Dashboard:3000]
+    UI -->|Render Circle Metric| Health[Code Health Score]
+    UI -->|Highlight Badges| Alerts[Security Alerts Count]
+    UI -->|Visualise Speedup| Boost[Performance Boost]
+    UI -->|Side-by-Side Grid| Diff[Advanced Code Diff Panel]
 ```
+
+---
+
+## 🌟 5 Cutting-Edge Features
+
+### 1. Dual-Agent Concurrent Review Engine
+Instead of running a single prompt which struggles with context-switching, DevPulse AI spawns two specialized, autonomous agents that process the code in parallel:
+* **SecOps-Agent** (Senior Cyber Security Auditor) searches for SQL Injection, XSS, SSRF, and hardcoded API keys.
+* **PerfScale-Agent** (Principal Software Architect) reviews execution bottlenecks, memory leaks, and clean code principles.
+
+### 2. Interactive Code Health Scoring & Diagnostic Telemetry
+Calculates a real-time **Code Health Score** dynamically rendered in a circular SVG metric, counts security alerts, and estimates performance speedup percentages. The live agent log terminal shows the step-by-step progress of the agents.
+
+### 3. Advanced Side-by-Side Code Diff Panel
+Displays the original vulnerable code wrapped in a red border next to the optimized, secured code wrapped in an emerald-green border, complete with an interactive "Copy Fixed Code" clipboard utility.
+
+### 4. Language Versatility
+Supports auditing for multiple programming languages including **Python**, **JavaScript**, **C++**, and **Java**, customizing the system prompts and response formatting based on the target language.
+
+### 5. High-Fidelity Local Sandbox Fallback
+If the Google Gemini API keys are not configured or if there is no internet connection, the system automatically detects the environment and switches to a high-fidelity local sandbox simulation. It serves realistic reports and code refactoring for demonstration queries, ensuring that the hackathon pitch is 100% stable and operational.
 
 ---
 
 ## ⚙️ How to Install & Run Locally
 
 ### 1. Prerequisites
-- **Python**: Version 3.10 or higher
-- **Node.js**: Version 18.x or higher
-- **Ollama** (Optional for offline local reasoning): Ensure Ollama is installed and running with the model:
-  ```bash
-  ollama run qwen2.5-coder:1.5b
-  ```
+* **Python**: Version 3.10 or higher
+* **Node.js**: Version 18.x or higher
 
 ### 2. Clone and Setup Environment
 
@@ -81,10 +69,11 @@ graph TD
    ```bash
    pip install -r requirements.txt
    ```
-4. Set up environment keys (Optional - if missing, Auto-SRE automatically falls back to Ollama or a structured reasoning simulator):
+4. Configure Gemini API key (Optional):
    ```bash
    export GEMINI_API_KEY="your-gemini-key"
    ```
+   *(Note: If no API key is set, the platform will gracefully fall back to local high-fidelity sandbox mode).*
 
 #### Frontend Setup:
 1. Navigate to the frontend directory:
@@ -98,24 +87,32 @@ graph TD
 
 ---
 
-### 3. Run the Platform
-From the root of the project, launch the backend and frontend concurrently using the startup script:
+### 3. Start DevPulse AI
+From the root of the project, launch the backend server (FastAPI) and the frontend server (Next.js) concurrently using the startup script:
 ```bash
 ./run.sh
 ```
 
-- **Local Control Panel UI:** `http://localhost:3000`
-- **FastAPI Server Endpoint:** `http://localhost:8000`
+* **Local Control Panel UI:** `http://localhost:3000`
+* **FastAPI Server Endpoint:** `http://localhost:8000`
 
 ---
 
-## 🔮 Interactive Outage Scenarios
-Open the dashboard UI to trigger and resolve simulated incidents:
-- **Scenario A (Payment-Service Checkout Latency):** Diagnoses a slow database transaction on the SQLite database, creating a real index schema hotfix to decrease response latency.
-- **Scenario B (Auth-Service Cache Failures):** Identifies a configuration hostname mismatch in `config/production.json` and performs a Git commit rollback to heal the connection.
-- **Scenario C (Gateway CPU Resource Starvation):** Detects container resource limit throttling in `gateway-deployment.yaml` and executes an automated manifest rollback restoring gateway cores.
+## 🔮 Demonstration Snippet
+To test the agents, paste the following vulnerable code in the sandbox editor and click **Analyze Code with Multi-Agents**:
 
----
+```python
+def login_user(username, password):
+    # CRITICAL SECURITY FLAW & BAD PERFORMANCE
+    import sqlite3
+    conn = sqlite3.connect('users.db')
+    cursor = conn.cursor()
+    query = f"SELECT * FROM accounts WHERE user='{username}' AND pass='{password}'"
+    cursor.execute(query)
+    return cursor.fetchall()
+```
 
-## 🔗 Project Showcase Link
-> **Hackathon Presentation link:** *(User link placeholder - will be added here)*
+DevPulse AI will immediately catch:
+1. **Security Alert (SQLi)**: The raw query construction via f-strings.
+2. **Performance Bottleneck (Disk I/O)**: The creation of a database connection inside the function call.
+3. **Refactored Solution**: Parameterized input bindings and connection pool reuse.

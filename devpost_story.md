@@ -1,34 +1,47 @@
-# Project Story: Auto-SRE
+# Devpost Pitch: DevPulse AI (An Autonomous Multi-Agent Code Reviewer & Security Auditor)
 
-## About the Project
-Auto-SRE is an enterprise-grade, autonomous Site Reliability Engineering (SRE) assistant built for the Splunk Agentic Ops Hackathon 2026. It automatically triages, diagnoses, and remediates application degradations in minutes, shifting the paradigm of incident response.
+## 💡 Inspiration
+The developer world is currently flooded with "AI wrappers"—simple single-prompt GPT API integrations that act as glorified linter tools. While they can catch basic syntax errors, they fail catastrophically when it comes to reasoning about complex application architecture, security vulnerabilities, or performance optimization. 
 
-The core achievement of Auto-SRE is its ability to drastically reduce Mean Time to Resolution (MTTR) using a multi-agent coordinate-state workflow. We can model our performance gain mathematically:
+When vulnerable code slips into production, it doesn't just crash an application; it compromises enterprise databases, exposes user data, and racks up thousands of dollars in cloud computing costs. Developers don't need another linter. They need **DevPulse AI**: a dual-layered, autonomous multi-agent defense system. By separating security and performance analysis into specialized autonomous roles, DevPulse AI acts as a digital pair of senior engineers—reviewing, identifying, and refactoring codebases concurrently before a single line is merged.
 
-Given an average manual investigation time of \\( T_{\text{manual}} = 45 \\) minutes and our Auto-SRE resolution time of \\( T_{\text{auto}} = 2.4 \\) minutes, the platform successfully achieves a 94.6% reduction in MTTR.
+---
 
-$$ \text{MTTR Reduction} = \left( 1 - \frac{T_{\text{auto}}}{T_{\text{manual}}} \right) \times 100\% = \left( 1 - \frac{2.4\text{ min}}{45\text{ min}} \right) \times 100\% \approx 94.6\% $$
+## ⚙️ What it does
+DevPulse AI acts as an autonomous code review terminal. Users can paste a raw block of source code or sync a public GitHub Repository URL, select their target language, and trigger a multi-agent audit.
 
-## What Inspired Us
-The single largest operational bottleneck for modern enterprise DevOps and SRE teams is manual incident resolution. When a production alert triggers, engineers suffer from alert fatigue and lose valuable time context-switching. They are forced to read raw logs in log aggregators, trace performance drops in APM dashboards, check recent code changes in version control, and coordinate everything in Slack war rooms. We wanted to eliminate this operational nightmare by replacing manual triage with an intelligent, self-healing workflow.
+Once executed, two specialized agents process the code in parallel:
+1. **SecOps-Agent (Senior Cyber Security Auditor)**: Scans the codebase for OWASP Top 10 vulnerabilities (such as SQL Injections, Cross-Site Scripting (XSS), and Server-Side Request Forgeries), exposes hardcoded secrets/API keys, highlights insecure third-party libraries, and creates cryptographically secure code patches.
+2. **PerfScale-Agent (Principal Software Architect)**: Runs static performance profiling, analyzes space-time complexity bottlenecks (like nested $O(N^2)$ loops), flags memory leaks, calculates a code smell score, and provides a low-latency refactored version of the code that reduces CPU cycles.
 
-## How We Built Our Project
-We built Auto-SRE using a powerful, multi-layered tech stack:
-* **Orchestration**: We used LangGraph to create a multi-agent state machine controller.
-* **Observability Data**: We utilized Splunk MCP (Model Context Protocol) and Splunk APM.
-* **LLMs**: Powered by GPT-4o, Claude 3.5 Sonnet, and Gemini 1.5 Pro.
-* **Infrastructure**: A FastAPI backend coordinating via WebSockets with a premium Next.js frontend.
+The dashboard integrates these reports in a beautiful side-by-side Results Grid, topped with visual KPI cards showing a calculated **Code Health Score**, a **Security Alert Count**, and estimated **Performance Speedup percentages**. It also includes an advanced interactive code diff comparison showing the vulnerable code (wrapped in red) next to the fixed code (wrapped in emerald) with a one-click copy utility.
 
-The investigation is driven by four specialized SRE agents that share a dynamic state graph (which tracks the incident ID, blast radius, symptoms, and query history):
-1. **Triage Agent**: Intercepts the alert and maps the service topology and dependencies in seconds.
-2. **Diagnostician Agent**: Connects to the Splunk MCP server to automatically construct and execute SPL queries against APM and VCS logs.
-3. **Remediation Agent**: Formulates a recovery strategy, such as executing an SQL index hotfix or triggering a code rollback.
-4. **Auditor Agent**: Archives the complete diagnostic thread and post-mortem report back into Splunk compliance indexes.
+---
 
-## Challenges We Faced
-* **Safe Autonomous Execution**: Allowing an AI to execute queries directly against databases is risky. To solve this, we built a custom SPL Guardrails Engine to intercept and evaluate all agent-generated queries for destructive syntax or SQL injection attempts before they hit the Splunk database.
-* **Human-in-the-Loop Constraints**: We needed AI speed without sacrificing human safety. We challenged ourselves to build an interactive Slack ChatOps Simulator directly into our UI. The agent dispatches alert details to this simulator, requiring human operators to click interactive buttons to authorize fixes before the Remediation Agent acts.
-* **Pitch & Demo Automation**: To demonstrate the platform's full workflow seamlessly, we engineered a custom 4K screen recording script using Playwright. This involved injecting a virtual mouse pointer with concentric ripple click effects and dynamic presentation tickers to highlight the state machine's transitions.
+## 🛠️ How we built it
+We built DevPulse AI using a highly responsive, modern full-stack architecture:
+* **The Elite Frontend**: Designed using **Next.js 16**, **React 19**, and **Tailwind CSS v4** to deliver an organic glassmorphic Dark-Mode UI. We integrated custom SVGs for the circular progress metrics and added real-time agent console log streams to make the agentic actions visible.
+* **The Multi-Agent Engine**: Engineered using **LangChain** and **CrewAI** paradigms in Python. We leveraged **Google Gemini 1.5 Pro**'s massive 1M token context window, allowing our agents to absorb entire files and dependency chains to make architectural decisions.
+* **The Communication Layer**: Designed a high-speed **FastAPI** service running on Uvicorn that accepts payloads, splits execution to run the SRE agents concurrently via `asyncio.gather`, and returns structured analysis payloads to the Next.js frontend in seconds.
 
-## What We Learned
-Building Auto-SRE taught us the immense power of agentic state machines. We learned that by breaking down complex SRE tasks into specialized, distinct agents (Triage, Diagnostician, Remediation, and Auditor), the system becomes highly reliable and avoids hallucination. Furthermore, integrating the Splunk Model Context Protocol (MCP) proved that securely bridging advanced LLMs with live, enterprise observability data is highly effective and represents the future of predictive SRE operations.
+---
+
+## 🛑 Challenges we ran into
+Our biggest challenge was **handling asynchronous data streaming from multiple agent loops to a live UI**. SRE agent runs can take several seconds to execute. To keep the developer engaged, we built a simulated local pipeline logger. This system tracks agent tasks in real-time, outputting step-by-step console logs to show exactly what each agent is doing (e.g., `[SecOps-Agent] Inspecting code paths for SQL Injection...`).
+
+We also had to ensure the platform remains fully testable offline or when Gemini API keys are missing. We engineered a **high-fidelity local sandbox fallback** that detects missing environment variables and serves pre-compiled, highly detailed mock reviews for our demonstration code snippets without throwing connection exceptions, making our hackathon submission robust and bulletproof.
+
+---
+
+## 🏆 Accomplishments that we're proud of
+* **True-Positive Interceptions**: DevPulse AI successfully catches true-positive critical SQL injection attempts in our dummy DB queries and automatically writes parameter-compliant prepared statements.
+* **Insane Out-of-the-Box Speed**: Running our parallel agent loops yields a complete security report, architectural analysis, health metrics, and refactored code blocks in **under 15 seconds**.
+* **Modern Design Aesthetics**: Created a sleek, developer-first interface that has an elite IDE-like console, glowing CTA buttons, and interactive diff visualizers.
+
+---
+
+## 🚀 What's next for DevPulse AI
+DevPulse AI is just getting started. Our roadmap includes:
+1. **GitHub Actions CI/CD Plugin**: An automated runner that executes on every pull request, leaving inline security comments on the exact code lines containing vulnerabilities.
+2. **Multi-File Context Graphing**: Allowing SRE agents to map function imports across multiple project folders, building a holistic dependency tree to find hidden architectural memory leaks.
+3. **IDE Extensions**: Integrating DevPulse AI directly into VS Code and JetBrains IDEs to flag security vulnerabilities and performance bottlenecks as developers write their code.

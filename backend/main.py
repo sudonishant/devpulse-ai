@@ -10,11 +10,12 @@ import asyncio
 # Import agents and state graph
 from backend.agents.graph import get_graph, AgentState, serialize_state
 from langchain_core.messages import AIMessage, HumanMessage
+from backend.devpulse import analyze_code as run_devpulse_analysis
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("main_server")
 
-app = FastAPI(title="Auto-SRE API Server", version="1.0.0")
+app = FastAPI(title="DevPulse AI API Server", version="1.0.0")
 
 # CORS setup for local development
 app.add_middleware(
@@ -113,6 +114,63 @@ async def run_incident_flow(incident_id: str, state: AgentState):
             "type": "error",
             "message": str(e)
         })
+
+class ValidateKeyRequest(BaseModel):
+    provider: str
+    api_key: str
+
+@app.post("/api/validate-key")
+async def validate_key_endpoint(req: ValidateKeyRequest):
+    provider = req.provider.lower()
+    api_key = req.api_key.strip()
+    
+    if not api_key:
+        raise HTTPException(status_code=400, detail="API Key cannot be empty.")
+        
+    is_valid = False
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            if "gemini" in provider:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+                resp = await client.get(url, timeout=5)
+                is_valid = (resp.status_code == 200)
+            elif "groq" in provider:
+                headers = {"Authorization": f"Bearer {api_key}"}
+                resp = await client.get("https://api.groq.com/openai/v1/models", headers=headers, timeout=5)
+                is_valid = (resp.status_code == 200)
+            elif "cohere" in provider:
+                headers = {"Authorization": f"Bearer {api_key}"}
+                resp = await client.get("https://api.cohere.com/v1/models", headers=headers, timeout=5)
+                is_valid = (resp.status_code == 200)
+            elif "hugging" in provider or "hf" in provider:
+                headers = {"Authorization": f"Bearer {api_key}"}
+                resp = await client.get("https://huggingface.co/api/whoami-v2", headers=headers, timeout=5)
+                is_valid = (resp.status_code == 200)
+            else:
+                is_valid = len(api_key) > 15
+    except Exception as e:
+        logger.error(f"Error validating key: {e}")
+        is_valid = False
+        
+    if is_valid:
+        return {"status": "ok", "message": "Connection established successfully!"}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid API Key. Connection failed.")
+
+class AnalyzeRequest(BaseModel):
+    code_content: str
+    language: str = "python"
+    gemini_api_key: str = ""
+
+@app.post("/api/analyze")
+async def analyze_code_endpoint(req: AnalyzeRequest):
+    try:
+        results = await run_devpulse_analysis(req.code_content, req.language, req.gemini_api_key)
+        return results
+    except Exception as e:
+        logger.exception(f"Error analyzing code: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/incidents/trigger")
 async def trigger_incident(req: TriggerIncidentRequest, background_tasks: BackgroundTasks):

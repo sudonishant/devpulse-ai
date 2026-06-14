@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Auto-SRE | Autonomous Multi-Agent Root Cause Analysis & Self-Healing",
-  description: "An intelligent, multi-agent site reliability engineering platform built for the Splunk Agentic Ops Hackathon 2026. Auto-SRE automatically triages, diagnoses, and remediates software outages using the Splunk MCP Server.",
+  title: "DevPulse AI | Autonomous Multi-Agent Code Reviewer & Security Auditor",
+  description: "DevPulse AI is a production-ready, autonomous code auditing platform that intercepts vulnerabilities and performance bottlenecks using parallel agentic reasoning.",
 };
 
 export default function RootLayout({
