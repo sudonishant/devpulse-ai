@@ -89,7 +89,7 @@ async def call_provider_llm(provider: str, api_key: str, system_prompt: str, use
                 ],
                 "temperature": 0.1
             }
-            resp = await client.post("https://api.groq.com/openai/v1/chat/completions", json=body, timeout=30)
+            resp = await client.post("https://api.groq.com/openai/v1/chat/completions", json=body, headers=headers, timeout=30)
             if resp.status_code != 200:
                 try:
                     err_msg = resp.json()["error"]["message"]
@@ -111,7 +111,7 @@ async def call_provider_llm(provider: str, api_key: str, system_prompt: str, use
                 "preamble": system_prompt,
                 "temperature": 0.1
             }
-            resp = await client.post("https://api.cohere.com/v1/chat", json=body, timeout=30)
+            resp = await client.post("https://api.cohere.com/v1/chat", json=body, headers=headers, timeout=30)
             if resp.status_code != 200:
                 try:
                     err_msg = resp.json()["message"]
@@ -140,7 +140,7 @@ async def call_provider_llm(provider: str, api_key: str, system_prompt: str, use
                     "return_full_text": False
                 }
             }
-            resp = await client.post(url, json=body, timeout=45)
+            resp = await client.post(url, json=body, headers=headers, timeout=45)
             if resp.status_code != 200:
                 raise RuntimeError(f"Hugging Face API error: {resp.text}")
             data = resp.json()
