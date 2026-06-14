@@ -14,7 +14,7 @@ import {
   CheckCircle, 
   XCircle, 
   AlertCircle, 
-  AlertTriangle,
+  AlertTriangle, 
   HelpCircle,
   Copy,
   ChevronRight,
@@ -28,7 +28,9 @@ import {
   Bold,
   Italic,
   Code,
-  List
+  List,
+  Volume2,
+  VolumeX
 } from "lucide-react";
 
 interface Message {
@@ -62,12 +64,10 @@ interface IncidentState {
 const highlightSPL = (query: string) => {
   if (!query) return "";
   
-  // Splunk keyword matching patterns
   const keywords = /\b(index|sourcetype|stats|eval|where|fields|dedup|table|sort|rex|timechart|rename|search|transaction|head|tail|top|limit|as|by)\b/gi;
   const aggFunctions = /\b(count|sum|avg|min|max|dc|values|list)\b(?=\s*\()/gi;
   const booleanOps = /\b(AND|OR|NOT)\b/g;
   
-  // Split tokens by quotes, pipes, boolean operators, assignment/comparison operators, and whitespace
   const tokens = query.split(/("[^"]*"|'[^']*'|\||!=|>=|<=|=|>|<|\s+)/);
   
   return tokens.map((token, idx) => {
@@ -132,6 +132,17 @@ export default function IncidentRoomPage() {
   const [activeTab, setActiveTab] = useState<"terminal" | "splunk" | "audit" | "slack">("terminal");
   const [copiedQueryIndex, setCopiedQueryIndex] = useState<number | null>(null);
   const terminalEndRef = useRef<HTMLDivElement>(null);
+  const slackEndRef = useRef<HTMLDivElement>(null);
+
+  // New Voice Assistant State
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const synthRef = useRef<SpeechSynthesis | null>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  // New Slack ChatOps State
+  const [slackMessages, setSlackMessages] = useState<any[]>([]);
+  const [slackInput, setSlackInput] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
 
   // Local state for Slack ChatOps reactions
   const [reactions, setReactions] = useState({
@@ -180,6 +191,42 @@ export default function IncidentRoomPage() {
     terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [state?.messages]);
 
+  // Scroll to bottom of Slack chat whenever messages are added
+  useEffect(() => {
+    slackEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [slackMessages, isTyping]);
+
+  // Initialize Speech Synthesis
+  useEffect(() => {
+    synthRef.current = window.speechSynthesis;
+    return () => {
+      synthRef.current?.cancel();
+    };
+  }, []);
+
+  // Initialize Slack Chat logs
+  useEffect(() => {
+    if (state && slackMessages.length === 0) {
+      const initial = [
+        {
+          role: "bot",
+          name: "Auto-SRE Bot",
+          time: "12:05 PM",
+          content: `CRITICAL ALERT: ${state.alert_name}\nService: ${state.service || "Evaluating..."}\nSymptoms: ${state.symptoms}\nTriage node completed. Transitioned to DIAGNOSE node.`
+        }
+      ];
+      if (state.diagnosis) {
+        initial.push({
+          role: "diag",
+          name: "Diagnostician Agent",
+          time: "12:06 PM",
+          content: `Root Cause Analysis Complete:\n${state.diagnosis}`
+        });
+      }
+      setSlackMessages(initial);
+    }
+  }, [state]);
+
   const handleAction = async (action: "approve" | "reject", selectedOption?: any) => {
     try {
       const url = `http://localhost:8000/api/incidents/${incidentId}/${action}`;
@@ -207,6 +254,66 @@ export default function IncidentRoomPage() {
     navigator.clipboard.writeText(text);
     setCopiedQueryIndex(index);
     setTimeout(() => setCopiedQueryIndex(null), 2000);
+  };
+
+  // SRE Speech Synthesis Trigger
+  const toggleSpeech = () => {
+    if (!state?.diagnosis) return;
+    if (isSpeaking) {
+      synthRef.current?.cancel();
+      setIsSpeaking(false);
+    } else {
+      synthRef.current?.cancel();
+      // Remove markdown characters for cleaner TTS readout
+      const cleanText = state.diagnosis.replace(/[`*#]/g, "");
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      utteranceRef.current = utterance;
+      setIsSpeaking(true);
+      synthRef.current?.speak(utterance);
+    }
+  };
+
+  // Slack Message Send & Simulated Bot Reply
+  const handleSendSlackMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!slackInput.trim()) return;
+    
+    const userMsg = {
+      role: "user",
+      name: "SRE Operator",
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      content: slackInput
+    };
+    
+    setSlackMessages(prev => [...prev, userMsg]);
+    const inputVal = slackInput.toLowerCase();
+    setSlackInput("");
+    setIsTyping(true);
+    
+    setTimeout(() => {
+      setIsTyping(false);
+      let replyContent = "";
+      if (inputVal.includes("status") || inputVal.includes("cpu") || inputVal.includes("health")) {
+        replyContent = `Auto-SRE System Status Check:\n- Targeted Service: ${state?.service}\n- Current Healing State: ${state?.remediation_status.toUpperCase()}\n- Executed Node: ${state?.current_node.toUpperCase()}\n- Telemetry feed: Online (Active)`;
+      } else if (inputVal.includes("logs") || inputVal.includes("errors") || inputVal.includes("query")) {
+        replyContent = `Splunk Index Query Ingestion Logs:\n${state?.splunk_queries.length ? state.splunk_queries.map((q, idx) => `[Search #${idx+1}]: ${q}`).join("\n") : "No searches logged."}`;
+      } else if (inputVal.includes("help") || inputVal.includes("commands")) {
+        replyContent = `Auto-SRE ChatOps commands available:\n- \`status\` / \`health\` - View current service health and load details\n- \`logs\` / \`query\` - View generated Splunk queries\n- \`remediate\` - View proposed recovery recommendation options`;
+      } else if (inputVal.includes("remediate") || inputVal.includes("fix") || inputVal.includes("approve")) {
+        replyContent = `Proposed Remediation Recommendations:\n${state?.proposed_remediation?.options ? state.proposed_remediation.options.map((o, idx) => `Option ${idx+1}: ${o.title} (${o.value})`).join("\n") : "No active remedies proposed."}`;
+      } else {
+        replyContent = `Received SRE command request: "${inputVal}". I am monitoring the active LangGraph execution. Type \`help\` to see SRE bot commands.`;
+      }
+      
+      setSlackMessages(prev => [...prev, {
+        role: "bot",
+        name: "Auto-SRE Bot",
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        content: replyContent
+      }]);
+    }, 1200);
   };
 
   if (!state) {
@@ -244,9 +351,97 @@ export default function IncidentRoomPage() {
     });
   };
 
+  // Database Performance Comparison Widget
+  const renderDbPerformanceComparison = () => {
+    if (!isLatencyScenario || !isExecuted) return null;
+    return (
+      <div className="glass-panel p-5 space-y-4">
+        <h3 className="text-xs font-semibold text-white uppercase tracking-wider border-b border-white/5 pb-2 flex items-center gap-1.5 text-emerald-400">
+          <Activity className="h-4 w-4 text-emerald-400" /> Database Index Optimization Speed
+        </h3>
+        <div className="grid grid-cols-2 gap-4 text-center">
+          <div className="bg-rose-950/10 border border-rose-500/10 rounded-xl p-3">
+            <span className="text-[10px] text-gray-500 font-semibold uppercase block">Before Index</span>
+            <span className="text-xl font-bold text-rose-400 font-mono">575.0ms</span>
+            <span className="text-[9px] text-gray-400 block mt-1">Full Table Scan</span>
+          </div>
+          <div className="bg-emerald-950/10 border border-emerald-500/10 rounded-xl p-3">
+            <span className="text-[10px] text-gray-500 font-semibold uppercase block">After Index</span>
+            <span className="text-xl font-bold text-emerald-400 font-mono">2.1ms</span>
+            <span className="text-[9px] text-gray-400 block mt-1">Index Lookup</span>
+          </div>
+        </div>
+        <div className="bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3 text-center">
+          <span className="text-[10px] text-gray-400 block">Performance Speedup Factor</span>
+          <span className="text-2xl font-bold text-white text-glow-emerald">273x Faster</span>
+          <span className="text-[9px] text-emerald-400 block mt-0.5">🚀 Latency reduced by 99.63%</span>
+        </div>
+      </div>
+    );
+  };
+
+  // Agent Execution timeline (Gantt Chart representation)
+  const renderAgentTimeline = () => {
+    const nodes = [
+      { id: "triage", label: "Triage", desc: "Map Blast Radius", tokens: "150 tokens" },
+      { id: "diagnose", label: "Diagnose", desc: "Query Telemetry", tokens: "1,850 tokens" },
+      { id: "remediate", label: "Remediate", desc: "Self-Healing Actions", tokens: "1,200 tokens" },
+      { id: "audit", label: "Audit", desc: "Log Splunk Index", tokens: "850 tokens" }
+    ];
+
+    const getNodeStatus = (nodeId: string) => {
+      const activeNode = state.current_node.toLowerCase();
+      const order = ["triage", "diagnose", "remediate", "audit"];
+      const activeIdx = order.indexOf(activeNode);
+      const nodeIdx = order.indexOf(nodeId);
+
+      if (state.remediation_status === "executed" && nodeId === "audit") {
+        return "completed";
+      }
+      if (nodeIdx < activeIdx) return "completed";
+      if (nodeIdx === activeIdx) return "running";
+      return "pending";
+    };
+
+    return (
+      <div className="glass-panel p-4 space-y-3">
+        <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Multi-Agent Execution Timeline</h3>
+        <div className="grid grid-cols-4 gap-2 relative">
+          {nodes.map((node) => {
+            const status = getNodeStatus(node.id);
+            let bgStyle = "bg-white/5 border-white/5 text-gray-500";
+            let lineStyle = "bg-gray-800";
+            
+            if (status === "completed") {
+              bgStyle = "bg-emerald-500/10 border-emerald-500/30 text-emerald-400";
+              lineStyle = "bg-emerald-500/50";
+            } else if (status === "running") {
+              bgStyle = "bg-blue-500/10 border-blue-500/40 text-blue-450 animate-pulse";
+              lineStyle = "bg-blue-500/20";
+            }
+
+            return (
+              <div key={node.id} className="relative z-10">
+                <div className={`p-3 rounded-xl border ${bgStyle} transition-all space-y-1`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-white block">{node.label}</span>
+                    <span className="text-[8px] font-mono opacity-80">{node.tokens}</span>
+                  </div>
+                  <span className="text-[9px] block text-gray-400 truncate">{node.desc}</span>
+                  <span className={`text-[8px] uppercase font-bold block ${
+                    status === "completed" ? "text-emerald-400" : (status === "running" ? "text-blue-400" : "text-gray-600")
+                  }`}>{status}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   // SVG Metrics Chart Generator
   const renderMetricsChart = () => {
-    // Choose dataset based on scenario
     let values = [];
     if (isLatencyScenario) {
       values = isExecuted ? [610, 640, 650, 630, 655, 645, 660, 650, 240, 140, 120, 115] : [610, 640, 650, 630, 655, 645, 660, 650];
@@ -261,7 +456,6 @@ export default function IncidentRoomPage() {
     const title = isLatencyScenario ? "Checkout Response Latency" : (isThrottlingScenario ? "API-Gateway CPU Load" : "Auth-Service 5xx Rate");
     const accentHex = isLatencyScenario ? "#0071e3" : (isThrottlingScenario ? "#ff9500" : "#ff3b30");
 
-    // Map data to SVG viewBox coordinates (width=400, height=100)
     const pointsCount = values.length;
     const pointsString = values.map((val, idx) => {
       const x = (idx / (pointsCount - 1)) * 380 + 10;
@@ -358,7 +552,7 @@ export default function IncidentRoomPage() {
       <div className="glass-panel p-5 font-mono text-[11px] space-y-2">
         <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-1 text-gray-500">
           <span className="flex items-center gap-1.5 font-sans font-bold uppercase text-[9px] text-gray-400">
-            <GitBranch className="h-3.5 w-3.5" /> Root-Cause Git Commit Diff
+            <GitBranch className="h-3.5 w-3.5" /> Root-Cause Git Diff
           </span>
           <span className="text-[10px]">{isLatencyScenario ? "commit 8f3b2cd" : (isThrottlingScenario ? "commit 9a2d3e" : "commit 1c9a4ef")}</span>
         </div>
@@ -367,7 +561,7 @@ export default function IncidentRoomPage() {
           {diffLines.map((line, idx) => {
             let bg = "bg-transparent text-gray-400";
             if (line.type === 'header') bg = "bg-white/5 text-gray-400 font-semibold";
-            if (line.type === 'info') bg = "bg-blue-950/15 text-blue-450";
+            if (line.type === 'info') bg = "bg-blue-950/15 text-blue-405";
             if (line.type === 'deletion') bg = "bg-rose-950/20 text-rose-400 border-l-2 border-rose-500 pl-2";
             if (line.type === 'addition') bg = "bg-emerald-950/20 text-emerald-400 border-l-2 border-emerald-500 pl-2";
             return (
@@ -683,6 +877,11 @@ export default function IncidentRoomPage() {
                 </span>
               </div>
               
+              {/* Timeline integration inside Console */}
+              <div className="p-4 border-b border-white/5">
+                {renderAgentTimeline()}
+              </div>
+              
               {/* Terminal Messages Output */}
               <div className="flex-1 p-5 overflow-y-auto space-y-5 font-mono text-xs sm:text-sm">
                 
@@ -754,7 +953,7 @@ export default function IncidentRoomPage() {
                           {copiedQueryIndex === idx ? "Copied!" : "Copy"}
                         </button>
                       </div>
-                      <pre className="whitespace-pre-wrap leading-relaxed text-slate-355">{highlightSPL(query)}</pre>
+                      <pre className="whitespace-pre-wrap leading-relaxed text-slate-350">{highlightSPL(query)}</pre>
                     </div>
                   ))}
                 </div>
@@ -810,7 +1009,6 @@ export default function IncidentRoomPage() {
                   </div>
                 </div>
                 
-                {/* Slack channels list */}
                 <div className="flex-1 py-3 overflow-y-auto space-y-1">
                   <div className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Channels</div>
                   <div className="px-2.5 py-1 text-slate-400 bg-white/5 font-semibold text-xs rounded mx-1.5 flex items-center gap-1.5 cursor-pointer">
@@ -841,144 +1039,72 @@ export default function IncidentRoomPage() {
 
                 {/* Slack messages */}
                 <div className="flex-1 p-4 overflow-y-auto space-y-4">
-                  {/* Triage Alert Message */}
-                  <div className="flex gap-2.5 items-start">
-                    <div className="h-8 w-8 rounded bg-rose-600 text-white flex items-center justify-center font-bold font-sans text-xs uppercase shrink-0">
-                      SRE
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-white text-xs">Auto-SRE Bot</span>
-                        <span className="text-[10px] text-slate-400">12:05 PM</span>
-                      </div>
-                      <div className="p-3 bg-[#26152c] rounded-lg border border-[#3c1f44] text-slate-200 max-w-lg space-y-2">
-                        <div className="font-semibold text-rose-400 flex items-center gap-1">
-                          <AlertTriangle className="h-3.5 w-3.5" /> CRITICAL ALERT: {state.alert_name}
-                        </div>
-                        <p className="text-[11px]">
-                          <strong>Service:</strong> {state.service || "Evaluating..."}<br />
-                          <strong>Symptoms:</strong> {state.symptoms}
-                        </p>
-                        <div className="text-[10px] text-slate-400 border-t border-[#3c1f44] pt-1.5 mt-1.5">
-                          Triage node completed. Transitioned to <strong>DIAGNOSE</strong> node.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  {slackMessages.map((msg, i) => {
+                    const isBot = msg.role === "bot";
+                    const isDiag = msg.role === "diag";
+                    const isUser = msg.role === "user";
+                    
+                    let bgAvatar = "bg-rose-600";
+                    if (isDiag) bgAvatar = "bg-indigo-600";
+                    if (isUser) bgAvatar = "bg-purple-600";
 
-                  {/* Diagnostician Analysis Message */}
-                  {state.diagnosis && (
-                    <div className="flex gap-2.5 items-start">
-                      <div className="h-8 w-8 rounded bg-indigo-650 text-white flex items-center justify-center font-bold font-sans text-xs uppercase shrink-0">
-                        DIAG
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-white text-xs">Diagnostician Agent</span>
-                          <span className="text-[10px] text-slate-400">12:06 PM</span>
+                    return (
+                      <div key={i} className="flex gap-2.5 items-start">
+                        <div className={`h-8 w-8 rounded text-white flex items-center justify-center font-bold font-sans text-xs uppercase shrink-0 ${bgAvatar}`}>
+                          {msg.name.substring(0, 3)}
                         </div>
-                        <div className="p-3 bg-[#26152c] rounded-lg border border-[#3c1f44] text-slate-200 max-w-lg space-y-1.5">
-                          <div className="font-semibold text-indigo-400">Root Cause Analysis Complete</div>
-                          <p className="text-[11px] whitespace-pre-wrap leading-relaxed bg-black/25 p-2 rounded border border-[#3c1f44]/50 font-mono text-[10px] text-slate-300">
-                            {state.diagnosis.substring(0, 300)}...
-                          </p>
-                          <div className="text-[10px] text-slate-400">
-                            Splunk query scan completed (executed {state.splunk_queries.length} searches). Handing off to <strong>REMEDIATION</strong> agent.
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-white text-xs">{msg.name}</span>
+                            <span className="text-[10px] text-slate-400">{msg.time}</span>
                           </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Remediation approval message */}
-                  {state.proposed_remediation?.options && state.proposed_remediation.options.length > 0 && (
-                    <div className="flex gap-2.5 items-start">
-                      <div className="h-8 w-8 rounded bg-amber-600 text-white flex items-center justify-center font-bold font-sans text-xs uppercase shrink-0">
-                        REM
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-white text-xs">Remediation Agent</span>
-                          <span className="text-[10px] text-slate-400">12:06 PM</span>
-                        </div>
-                        
-                        <div className="p-3 bg-[#26152c] rounded-lg border border-[#3c1f44] text-slate-200 max-w-lg space-y-2">
-                          <div className="font-semibold text-amber-400 flex items-center gap-1">
-                            <ShieldAlert className="h-3.5 w-3.5" /> SRE Operator Authorization Requested
-                          </div>
-                          <p className="text-[11px]">
-                            Proposed safe operations to mitigate {state.service}. Select approval option:
-                          </p>
-
-                          {/* Options render */}
-                          <div className="space-y-1.5 pt-1">
-                            {state.proposed_remediation.options.map((opt, i) => (
-                              <div key={i} className="flex items-center justify-between bg-black/25 p-2 rounded border border-[#3c1f44]/40">
-                                <span className="font-medium text-[10px]">{opt.title}</span>
-                                {state.remediation_status === "pending" ? (
-                                  <button
-                                    onClick={() => handleAction("approve", opt)}
-                                    className="bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] px-2 py-0.5 rounded font-bold transition-all cursor-pointer"
-                                  >
-                                    Authorize
-                                  </button>
-                                ) : (
-                                  <span className="text-[9px] text-slate-500 italic">Locked</span>
-                                )}
+                          
+                          <div className="p-3 bg-[#26152c] rounded-lg border border-[#3c1f44] text-slate-200 max-w-lg space-y-2">
+                            {isBot && msg.content.includes("CRITICAL ALERT") && (
+                              <div className="font-semibold text-rose-400 flex items-center gap-1">
+                                <AlertTriangle className="h-3.5 w-3.5" /> CRITICAL ALERT
                               </div>
-                            ))}
-                          </div>
-
-                          <div className="text-[10px] text-slate-400 border-t border-[#3c1f44] pt-1.5 mt-1">
-                            Status: <span className="font-semibold text-white uppercase">{state.remediation_status}</span>
+                            )}
+                            <p className="text-[11px] whitespace-pre-wrap leading-relaxed">
+                              {msg.content}
+                            </p>
                           </div>
                         </div>
+                      </div>
+                    );
+                  })}
 
-                        {/* Slack Reactions */}
-                        <div className="flex gap-1.5 pt-1">
-                          <button 
-                            onClick={() => toggleReaction("thumbsUp")}
-                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] cursor-pointer ${
-                              reactions.thumbsUp.clicked ? "bg-[#3e1b4c] border-[#8a4d9c] text-white" : "bg-black/15 border-transparent text-slate-400"
-                            }`}
-                          >
-                            <span>👍</span> {reactions.thumbsUp.count}
-                          </button>
-                          <button 
-                            onClick={() => toggleReaction("eyes")}
-                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] cursor-pointer ${
-                              reactions.eyes.clicked ? "bg-[#3e1b4c] border-[#8a4d9c] text-white" : "bg-black/15 border-transparent text-slate-400"
-                            }`}
-                          >
-                            <span>👀</span> {reactions.eyes.count}
-                          </button>
-                          <button 
-                            onClick={() => toggleReaction("fire")}
-                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] cursor-pointer ${
-                              reactions.fire.clicked ? "bg-[#3e1b4c] border-[#8a4d9c] text-white" : "bg-black/15 border-transparent text-slate-400"
-                            }`}
-                          >
-                            <span>🔥</span> {reactions.fire.count}
-                          </button>
+                  {/* Typing Indicator */}
+                  {isTyping && (
+                    <div className="flex gap-2.5 items-start">
+                      <div className="h-8 w-8 rounded bg-rose-600 text-white flex items-center justify-center font-bold font-sans text-xs uppercase shrink-0">
+                        BOT
+                      </div>
+                      <div className="space-y-1">
+                        <span className="font-bold text-white text-xs">Auto-SRE Bot</span>
+                        <div className="p-2 bg-[#26152c] rounded-lg border border-[#3c1f44] text-slate-400 text-[10px] animate-pulse">
+                          Bot is typing...
                         </div>
                       </div>
                     </div>
                   )}
+                  
+                  <div ref={slackEndRef} />
                 </div>
 
-                {/* Slack Footer Inputs */}
-                <div className="p-3 border-t border-[#2d1b32] bg-[#190e1c] flex items-center gap-2 shrink-0">
-                  <div className="flex-1 bg-[#26152b] border border-[#3a1f42] rounded-xl px-3 py-2 flex items-center justify-between text-slate-400">
-                    <span>Send message to SRE team...</span>
-                    <div className="flex gap-2">
-                      <Smile className="h-4 w-4 hover:text-white cursor-pointer" />
-                      <Paperclip className="h-4 w-4 hover:text-white cursor-pointer" />
-                    </div>
-                  </div>
-                  <button className="p-2.5 bg-[#5e316a] hover:bg-[#6f3a7d] text-white rounded-xl cursor-pointer">
+                {/* Slack Footer Inputs - Hooked up to Form */}
+                <form onSubmit={handleSendSlackMessage} className="p-3 border-t border-[#2d1b32] bg-[#190e1c] flex items-center gap-2 shrink-0">
+                  <input
+                    type="text"
+                    value={slackInput}
+                    onChange={(e) => setSlackInput(e.target.value)}
+                    placeholder="Type a command (help, status, logs, remediate)..."
+                    className="flex-1 bg-[#26152b] border border-[#3a1f42] rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                  />
+                  <button type="submit" className="p-2.5 bg-[#5e316a] hover:bg-[#6f3a7d] text-white rounded-xl cursor-pointer">
                     <Send className="h-3.5 w-3.5" />
                   </button>
-                </div>
+                </form>
               </div>
             </div>
           )}
@@ -990,14 +1116,33 @@ export default function IncidentRoomPage() {
           {/* APM Graph Widget */}
           {renderMetricsChart()}
 
+          {/* Real-time DB Performance Speedup comparison card */}
+          {renderDbPerformanceComparison()}
+
           {/* Root-cause Commit diff */}
           {renderGitDiff()}
 
           {/* Remediation Decision Board */}
           <div className="glass-panel p-5 space-y-4">
-            <h2 className="text-xs font-semibold text-white uppercase tracking-wider border-b border-white/5 pb-2">
-              Remediation Action Room
-            </h2>
+            <div className="flex items-center justify-between border-b border-white/5 pb-2">
+              <h2 className="text-xs font-semibold text-white uppercase tracking-wider">
+                Remediation Action Room
+              </h2>
+              {state.diagnosis && (
+                <button
+                  onClick={toggleSpeech}
+                  className={`p-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1 text-[10px] ${
+                    isSpeaking 
+                      ? "bg-rose-500/10 border-rose-500/30 text-rose-400" 
+                      : "bg-white/5 border-white/5 text-gray-400 hover:text-white"
+                  }`}
+                  title="Toggle Voice Assistant Speech"
+                >
+                  {isSpeaking ? <VolumeX className="h-3.5 w-3.5 animate-pulse" /> : <Volume2 className="h-3.5 w-3.5" />}
+                  {isSpeaking ? "Stop Voice" : "Voice RCA"}
+                </button>
+              )}
+            </div>
             
             {state.remediation_status === "pending" ? (
               <div className="space-y-4">
