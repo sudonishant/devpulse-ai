@@ -19,17 +19,22 @@ This platform integrates with **Splunk Model Context Protocol (MCP)** to query a
 
 ---
 
-### 🖥️ 1. Apple-style SRE Control Dashboard
+### 🖥️ 1. Apple-style SRE Control Dashboard (Overview)
 A sleek, glassmorphic overview displaying system health, latency metrics, mean time to resolution (MTTR) stats, and active incident rooms.
-![Dashboard View](./frontend/public/dashboard_view.png)
+![Dashboard Overview](./frontend/public/dashboard_overview.png)
 
-### 📊 2. Active SRE Incident Room & Topology
-An interactive workspace displaying real-time agent console logs, SVG network topologies showing throttling/unhealthy services, and a live ChatOps Slack simulation sidebar for operator approval.
-![Incident Room](./frontend/public/incident_room_view.png)
+### 📊 2. Active SRE Incident Investigations Tracker
+Displays multiple triggered and resolved incidents in a live, real-time status table showing active agent nodes.
+![Dashboard Investigations](./frontend/public/dashboard_investigations.png)
 
-### ⚙️ 3. Audit Trails & Git Diff Correlation
-Displays the exact root-cause Git commit difference side-by-side and prints the structured, token-tracked SRE audit logs sent to Splunk.
-![Remediation Flow](./frontend/public/remediation_flow.png)
+### ⚙️ 3. Active Incident Room & Latency Topology
+An interactive workspace displaying real-time agent console logs, SVG network topologies, and live checkout response latency charts.
+![Incident Room Latency](./frontend/public/incident_room_latency.png)
+
+### 💬 4. ChatOps Slack Integration & CPU Throttling
+A live war-room simulation displaying ChatOps notifications from Auto-SRE Bot, alongside current API Gateway CPU loads and HITL authorization options.
+![Incident Room Slack](./frontend/public/incident_room_slack.png)
+
 
 ---
 
