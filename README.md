@@ -9,7 +9,7 @@
 [![Google Gemini](https://img.shields.io/badge/Google%20Gemini-1.5%20Pro-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-Multi--Agent-FF6B35?style=for-the-badge&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-22C55E?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Hackathon](https://img.shields.io/badge/Hackathon-Winner-FFD700?style=for-the-badge)](https://devpost.com/)
+[![Hackathon](https://img.shields.io/badge/Hackathon-FFD700?style=for-the-badge)](https://devpost.com/)
 
 **DevPulse AI** is a production-ready, autonomous dual-agent code auditing platform that intercepts vulnerabilities and performance bottlenecks before they hit production. Powered by **Google Gemini 1.5 Pro** and **LangGraph**, it spawns **SecOps-Agent** and **PerfScale-Agent** concurrently — delivering OWASP security patches and performance refactors in a single, stunning glassmorphic dashboard.
 
