@@ -1,43 +1,22 @@
-import logging
+"""Fail-closed read-only subset, NOT a general SPL parser or a sandbox."""
+import re
 
-logger = logging.getLogger("mcp_security")
+READ_ONLY = {"search", "stats", "sort", "table", "head", "fields", "where", "eval", "dedup", "rename", "timechart", "top", "tail"}
 
-# Destructive commands that are prohibited for execution by AI agents
-PROHIBITED_COMMANDS = [
-    "delete", 
-    "outputlookup", 
-    "outputcsv", 
-    "outputtext", 
-    "inputlookup",  # Blocked in certain strict profiles
-    "sendemail",
-    "collect",
-    "createrss"
-]
 
 def validate_spl(query: str) -> tuple[bool, str]:
-    """
-    Validates a generated SPL query against security and performance guardrails.
-    Returns (is_valid, reason_or_empty)
-    """
-    cleaned_query = query.strip().lower()
-    
-    # 1. Check for command injections (e.g. semicolons trying to execute raw bash commands if passed incorrectly)
-    if ";" in cleaned_query:
-        return False, "Query contains semicolon (potential command injection vector)."
-        
-    # 2. Tokenize by pipe to check commands
-    segments = [seg.strip().split()[0] for seg in cleaned_query.split("|") if seg.strip()]
-    
-    # Check for prohibited commands
-    for cmd in segments:
-        if cmd in PROHIBITED_COMMANDS:
-            return False, f"Prohibited write/destructive command detected: '{cmd}'."
-            
-    # 3. Check performance guidelines: Enforce search scope to prevent resource-exhausting full scans
-    # In a real environment, we check if "index=" or "sourcetype=" is specified in the first search segment
-    first_segment = cleaned_query.split("|")[0] if "|" in cleaned_query else cleaned_query
-    if "index=" not in first_segment and "sourcetype=" not in first_segment:
-        # We allow a warning in a mock environment, but strict validation fails it
-        logger.warning("Performance Warning: SPL query does not specify index or sourcetype scope.")
-        
+    if not query.strip() or len(query) > 4096:
+        return False, "Query must be nonempty and at most 4096 characters."
+    if any(char in query for char in (";", "`", "[", "]", "\n", "\r", "\x00")):
+        return False, "Macros, subsearches, control characters and multi-statements are unsupported."
+    segments = [segment.strip() for segment in query.lower().split("|")]
+    if not all(segments):
+        return False, "Empty query segment."
+    if not re.search(r"\b(?:index|sourcetype)\s*=\s*[\w*-]+", segments[0]):
+        return False, "An explicit index or sourcetype is required."
+    if re.match(r"(?:search\s+)?(?:index|sourcetype)\s*=", segments[0]) is None:
+        return False, "Only scoped searches are permitted."
+    for segment in segments[1:]:
+        if segment.split()[0] not in READ_ONLY:
+            return False, "Command is not in the read-only allowlist."
     return True, ""

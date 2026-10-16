@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { 
   ArrowLeft, 
@@ -15,23 +15,18 @@ import {
   XCircle, 
   AlertCircle, 
   AlertTriangle, 
-  HelpCircle,
   Copy,
-  ChevronRight,
   ShieldAlert,
   Activity,
   MessageSquare,
   Hash,
   Send,
-  Smile,
-  Paperclip,
-  Bold,
-  Italic,
-  Code,
-  List,
   Volume2,
   VolumeX
 } from "lucide-react";
+
+interface RemediationOption { action_type: string; target: string; value: string; title?: string; }
+interface ChatMessage { role: string; name: string; time: string; content: string; }
 
 interface Message {
   role: string;
@@ -48,8 +43,8 @@ interface IncidentState {
   splunk_queries: string[];
   diagnosis: string;
   proposed_remediation: {
-    options?: any[];
-    selected_option?: any;
+    options?: RemediationOption[];
+    selected_option?: RemediationOption;
     action_type?: string;
     target?: string;
     value?: string;
@@ -57,7 +52,7 @@ interface IncidentState {
   remediation_status: string;
   current_node: string;
   user_approval_needed: boolean;
-  audit_logs: any[];
+  audit_logs: { timestamp?: string; agent?: string; action?: string; status?: string; tokens_used?: number }[];
 }
 
 // Custom Splunk SPL syntax highlighting parser
@@ -139,52 +134,35 @@ export default function IncidentRoomPage() {
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
-  // New Slack ChatOps State
-  const [slackMessages, setSlackMessages] = useState<any[]>([]);
+  // New Slack Demo ChatOps State
+  const [chatMessages, setSlackMessages] = useState<ChatMessage[]>([]);
   const [slackInput, setSlackInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
 
-  // Local state for Slack ChatOps reactions
-  const [reactions, setReactions] = useState({
-    thumbsUp: { count: 3, clicked: false },
-    eyes: { count: 5, clicked: false },
-    fire: { count: 2, clicked: false },
-    heart: { count: 1, clicked: false }
-  });
-
-  const toggleReaction = (key: keyof typeof reactions) => {
-    setReactions(prev => ({
-      ...prev,
-      [key]: {
-        count: prev[key].clicked ? prev[key].count - 1 : prev[key].count + 1,
-        clicked: !prev[key].clicked
-      }
-    }));
-  };
-
-  // Connect to WebSocket on mount
+  // Same-origin polling also works over HTTPS and after connection interruptions.
   useEffect(() => {
-    const ws = new WebSocket(`ws://localhost:8000/ws/incidents/${incidentId}`);
-
-    ws.onopen = () => {
-      setWsConnected(true);
-      console.log("WebSocket connected");
-    };
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === "state_update") {
-        setState(data.state);
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    const refresh = async () => {
+      try {
+        const response = await fetch(`/api/incidents/${encodeURIComponent(incidentId)}`, { signal: controller.signal, cache: "no-store" });
+        if (!response.ok) throw new Error("Incident unavailable");
+        const next: IncidentState = await response.json();
+        if (!controller.signal.aborted) { setState(next); setWsConnected(true); }
+      } catch {
+        if (!controller.signal.aborted) setWsConnected(false);
+      } finally {
+        if (!controller.signal.aborted) timer = setTimeout(refresh, 2000);
       }
     };
-
-    ws.onclose = () => {
-      setWsConnected(false);
-      console.log("WebSocket disconnected");
-    };
-
-    return () => ws.close();
+    void refresh();
+    return () => { controller.abort(); clearTimeout(timer); };
   }, [incidentId]);
+
+  const slackMessages: ChatMessage[] = useMemo(() => [
+    ...(state ? [{ role: "bot", name: "Demo SRE Bot", time: "Simulation", content: `SIMULATED Demo ChatOps: ${state.alert_name}\n${state.diagnosis || state.symptoms}` }] : []),
+    ...chatMessages,
+  ], [state, chatMessages]);
 
   // Scroll to bottom of terminal whenever messages are added
   useEffect(() => {
@@ -204,32 +182,9 @@ export default function IncidentRoomPage() {
     };
   }, []);
 
-  // Initialize Slack Chat logs
-  useEffect(() => {
-    if (state && slackMessages.length === 0) {
-      const initial = [
-        {
-          role: "bot",
-          name: "Auto-SRE Bot",
-          time: "12:05 PM",
-          content: `CRITICAL ALERT: ${state.alert_name}\nService: ${state.service || "Evaluating..."}\nSymptoms: ${state.symptoms}\nTriage node completed. Transitioned to DIAGNOSE node.`
-        }
-      ];
-      if (state.diagnosis) {
-        initial.push({
-          role: "diag",
-          name: "Diagnostician Agent",
-          time: "12:06 PM",
-          content: `Root Cause Analysis Complete:\n${state.diagnosis}`
-        });
-      }
-      setSlackMessages(initial);
-    }
-  }, [state]);
-
-  const handleAction = async (action: "approve" | "reject", selectedOption?: any) => {
+  const handleAction = async (action: "approve" | "reject", selectedOption?: RemediationOption) => {
     try {
-      const url = `http://localhost:8000/api/incidents/${incidentId}/${action}`;
+      const url = `/api/incidents/${encodeURIComponent(incidentId)}/${action}`;
       const options: RequestInit = {
         method: "POST",
         headers: { "Content-Type": "application/json" }
@@ -300,7 +255,7 @@ export default function IncidentRoomPage() {
       } else if (inputVal.includes("logs") || inputVal.includes("errors") || inputVal.includes("query")) {
         replyContent = `Splunk Index Query Ingestion Logs:\n${state?.splunk_queries.length ? state.splunk_queries.map((q, idx) => `[Search #${idx+1}]: ${q}`).join("\n") : "No searches logged."}`;
       } else if (inputVal.includes("help") || inputVal.includes("commands")) {
-        replyContent = `Auto-SRE ChatOps commands available:\n- \`status\` / \`health\` - View current service health and load details\n- \`logs\` / \`query\` - View generated Splunk queries\n- \`remediate\` - View proposed recovery recommendation options`;
+        replyContent = `Auto-SRE Demo ChatOps commands available:\n- \`status\` / \`health\` - View current service health and load details\n- \`logs\` / \`query\` - View generated Splunk queries\n- \`remediate\` - View proposed recovery recommendation options`;
       } else if (inputVal.includes("remediate") || inputVal.includes("fix") || inputVal.includes("approve")) {
         replyContent = `Proposed Remediation Recommendations:\n${state?.proposed_remediation?.options ? state.proposed_remediation.options.map((o, idx) => `Option ${idx+1}: ${o.title} (${o.value})`).join("\n") : "No active remedies proposed."}`;
       } else {
@@ -410,14 +365,11 @@ export default function IncidentRoomPage() {
           {nodes.map((node) => {
             const status = getNodeStatus(node.id);
             let bgStyle = "bg-white/5 border-white/5 text-gray-500";
-            let lineStyle = "bg-gray-800";
             
             if (status === "completed") {
               bgStyle = "bg-emerald-500/10 border-emerald-500/30 text-emerald-400";
-              lineStyle = "bg-emerald-500/50";
             } else if (status === "running") {
               bgStyle = "bg-blue-500/10 border-blue-500/40 text-blue-450 animate-pulse";
-              lineStyle = "bg-blue-500/20";
             }
 
             return (
@@ -860,7 +812,7 @@ export default function IncidentRoomPage() {
                   : "border-transparent text-gray-400 hover:text-gray-250"
               }`}
             >
-              <MessageSquare className="h-4 w-4 text-purple-400" /> ChatOps Simulation
+              <MessageSquare className="h-4 w-4 text-purple-400" /> Demo ChatOps Simulation
             </button>
           </div>
 
@@ -895,7 +847,6 @@ export default function IncidentRoomPage() {
                 </div>
 
                 {state.messages.map((msg, index) => {
-                  const isTriage = msg.name === "TriageAgent";
                   const isDiagnose = msg.name === "DiagnosticianAgent";
                   const isRemediate = msg.name === "RemediationAgent";
                   const isAudit = msg.name === "AuditorAgent";
@@ -996,7 +947,7 @@ export default function IncidentRoomPage() {
             </div>
           )}
 
-          {/* Tab Content 4: ChatOps Slack Simulator */}
+          {/* Tab Content 4: Demo ChatOps Slack Simulator */}
           {activeTab === "slack" && (
             <div className="glass-panel flex-1 border-white/5 h-[480px] overflow-hidden flex flex-row">
               {/* Slack Workspace Sidebar */}

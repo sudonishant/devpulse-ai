@@ -1,0 +1,186 @@
+[
+  {
+    "name": "aegiseye-forensics",
+    "fork": false,
+    "size_kb": 9885,
+    "clone_url": "https://github.com/sudonishant/aegiseye-forensics.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "aethersense",
+    "fork": false,
+    "size_kb": 705,
+    "clone_url": "https://github.com/sudonishant/aethersense.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "air-draw-drum-kit",
+    "fork": false,
+    "size_kb": 17670,
+    "clone_url": "https://github.com/sudonishant/air-draw-drum-kit.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "airlink-vercel",
+    "fork": false,
+    "size_kb": 113,
+    "clone_url": "https://github.com/sudonishant/airlink-vercel.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "autodoc-ai",
+    "fork": false,
+    "size_kb": 620,
+    "clone_url": "https://github.com/sudonishant/autodoc-ai.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "chemistryneeshant",
+    "fork": false,
+    "size_kb": 249,
+    "clone_url": "https://github.com/sudonishant/chemistryneeshant.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "cryptoshield-usb-vault",
+    "fork": false,
+    "size_kb": 170,
+    "clone_url": "https://github.com/sudonishant/cryptoshield-usb-vault.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "devpulse-ai",
+    "fork": false,
+    "size_kb": 3021,
+    "clone_url": "https://github.com/sudonishant/devpulse-ai.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "ISM",
+    "fork": false,
+    "size_kb": 116292,
+    "clone_url": "https://github.com/sudonishant/ISM.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "ISM-AccessPath",
+    "fork": false,
+    "size_kb": 3830,
+    "clone_url": "https://github.com/sudonishant/ISM-AccessPath.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "jeeplan2027",
+    "fork": false,
+    "size_kb": 543,
+    "clone_url": "https://github.com/sudonishant/jeeplan2027.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "nee-wifi-fixer",
+    "fork": false,
+    "size_kb": 681,
+    "clone_url": "https://github.com/sudonishant/nee-wifi-fixer.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "omnidetect-ai",
+    "fork": false,
+    "size_kb": 1552,
+    "clone_url": "https://github.com/sudonishant/omnidetect-ai.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "pi-control-center",
+    "fork": false,
+    "size_kb": 7479,
+    "clone_url": "https://github.com/sudonishant/pi-control-center.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "satarkpay-repo",
+    "fork": false,
+    "size_kb": 129535,
+    "clone_url": "https://github.com/sudonishant/satarkpay-repo.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "SUDO-SPANDR",
+    "fork": false,
+    "size_kb": 27903,
+    "clone_url": "https://github.com/sudonishant/SUDO-SPANDR.git",
+    "default_branch": "master",
+    "archived": false
+  },
+  {
+    "name": "sudo-spandr-gateway",
+    "fork": false,
+    "size_kb": 3038,
+    "clone_url": "https://github.com/sudonishant/sudo-spandr-gateway.git",
+    "default_branch": "master",
+    "archived": false
+  },
+  {
+    "name": "SUDO-SPANDR-TUI",
+    "fork": false,
+    "size_kb": 4347,
+    "clone_url": "https://github.com/sudonishant/SUDO-SPANDR-TUI.git",
+    "default_branch": "master",
+    "archived": false
+  },
+  {
+    "name": "sudo-spandr-vpn",
+    "fork": false,
+    "size_kb": 24588,
+    "clone_url": "https://github.com/sudonishant/sudo-spandr-vpn.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "sudonishant",
+    "fork": false,
+    "size_kb": 4906,
+    "clone_url": "https://github.com/sudonishant/sudonishant.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "sudonishant.github.io",
+    "fork": false,
+    "size_kb": 14907,
+    "clone_url": "https://github.com/sudonishant/sudonishant.github.io.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "vanguard-scanner",
+    "fork": false,
+    "size_kb": 1208,
+    "clone_url": "https://github.com/sudonishant/vanguard-scanner.git",
+    "default_branch": "main",
+    "archived": false
+  },
+  {
+    "name": "voxtrace",
+    "fork": false,
+    "size_kb": 385,
+    "clone_url": "https://github.com/sudonishant/voxtrace.git",
+    "default_branch": "main",
+    "archived": false
+  }
+]

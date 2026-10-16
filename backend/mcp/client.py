@@ -3,6 +3,9 @@ import subprocess
 import json
 import logging
 import os
+import threading
+import selectors
+import time
 
 logger = logging.getLogger("mcp_client")
 
@@ -18,11 +21,12 @@ class SplunkMCPClient:
             [sys.executable, server_path],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
             text=True,
             bufsize=1
         )
         self.request_id = 1
+        self.lock = threading.Lock()
         
         # Start server initialization
         try:
@@ -34,9 +38,14 @@ class SplunkMCPClient:
             logger.info(f"Splunk MCP Server initialized. Info: {init_res}")
         except Exception as e:
             logger.error(f"Handshake failed: {e}")
-            raise e
+            self.close()
+            raise
 
     def send_request(self, method, params):
+        with self.lock:
+            return self._send_request(method, params)
+
+    def _send_request(self, method, params):
         req = {
             "jsonrpc": "2.0",
             "id": self.request_id,
@@ -52,15 +61,32 @@ class SplunkMCPClient:
         self.process.stdin.flush()
         
         # Read JSON response line
-        line = self.process.stdout.readline()
+        deadline = time.monotonic() + 10
+        data = bytearray()
+        with selectors.DefaultSelector() as selector:
+            selector.register(self.process.stdout, selectors.EVENT_READ)
+            while b"\n" not in data:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or not selector.select(timeout=remaining):
+                    self.close()
+                    raise TimeoutError("MCP response deadline exceeded")
+                chunk = os.read(self.process.stdout.fileno(), 65536)
+                if not chunk:
+                    break
+                data.extend(chunk)
+                if len(data) > 1_000_000:
+                    self.close()
+                    raise RuntimeError("MCP response too large")
+        line = data.decode("utf-8")
         if not line:
             # Check stderr log to see what crashed
-            stderr_log = self.process.stderr.read()
-            raise RuntimeError(f"MCP Server terminated unexpectedly. Stderr: {stderr_log}")
+            raise RuntimeError("MCP server terminated unexpectedly")
             
         resp = json.loads(line)
         logger.debug(f"Received JSON-RPC Response: {resp}")
         
+        if resp.get("id") != curr_id:
+            raise RuntimeError("MCP response ID mismatch")
         if "error" in resp:
             err = resp["error"]
             raise RuntimeError(f"MCP Error [{err.get('code')}]: {err.get('message')}")
@@ -86,7 +112,13 @@ class SplunkMCPClient:
     def close(self):
         if self.process:
             self.process.terminate()
-            self.process.wait()
+            try:
+                self.process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait(timeout=3)
+            self.process.stdin.close()
+            self.process.stdout.close()
             logger.info("Splunk MCP Server subprocess closed.")
 
 # Simple sanity test when run directly

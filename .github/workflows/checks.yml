@@ -1,0 +1,36 @@
+name: Checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -r backend/requirements.lock.txt
+      - run: python scripts/scan_secrets.py .
+      - run: python -m pytest -q
+      - run: pip-audit
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - working-directory: frontend
+        run: npm ci --ignore-scripts
+      - working-directory: frontend
+        run: npm run lint -- --max-warnings=0
+      - working-directory: frontend
+        run: npm run build
+      # Production graph is clean at audit time. See SECURITY.md for the dev-only braces advisory.
+      - working-directory: frontend
+        run: npm audit --omit=dev --audit-level=low

@@ -1,0 +1,1 @@
+git apply --check passed against a clean worktree at original commit e46aed0.

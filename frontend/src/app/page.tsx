@@ -12,17 +12,13 @@ import {
   FileText,
   Copy,
   Check,
-  Play,
   RotateCcw,
   Sparkles,
-  Database,
   Lock,
   Cpu,
   RefreshCw,
   Info,
   AlertTriangle,
-  ArrowRight,
-  UserCheck
 } from "lucide-react";
 
 // Inline Github Icon Component to avoid package version issues
@@ -41,8 +37,12 @@ const Github = ({ className }: { className?: string }) => (
   </svg>
 );
 
+type Provider = "gemini" | "groq" | "cohere" | "openrouter" | "huggingface";
+type Language = "python" | "javascript" | "cpp" | "java";
+
 // Types
 interface AnalysisResult {
+  analysis_mode?: string;
   health_score: number;
   security_alerts: number;
   performance_boost: number;
@@ -122,17 +122,17 @@ def login_user(username: str, password: str):
 
 export default function Page() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "sync" | "reports" | "settings">("dashboard");
-  const [language, setLanguage] = useState<"python" | "javascript" | "cpp" | "java">("python");
+  const [language, setLanguage] = useState<Language>("python");
   const [githubUrl, setGithubUrl] = useState("");
   const [codeContent, setCodeContent] = useState(DUMMY_VULNERABLE_CODE);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [currentStepText, setCurrentStepText] = useState("");
+  const [, setCurrentStepText] = useState("");
   const [agentLogs, setAgentLogs] = useState<string[]>([]);
   const [results, setResults] = useState<AnalysisResult | null>(null);
   const [copied, setCopied] = useState(false);
   const [backendOnline, setBackendOnline] = useState(false);
   const [geminiApiKey, setGeminiApiKey] = useState("");
-  const [backendUrl, setBackendUrl] = useState("http://localhost:8000");
+  const backendUrl = "";
   const [showKeyModal, setShowKeyModal] = useState(false);
   
   // Custom API key configuration states
@@ -143,7 +143,7 @@ export default function Page() {
 
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
-  const detectProviderFromKey = (key: string, defaultProvider: string): string => {
+  const detectProviderFromKey = (key: string, defaultProvider: Provider): Provider => {
     const k = key.trim();
     if (k.startsWith("gsk_")) return "groq";
     if (k.startsWith("hf_")) return "huggingface";
@@ -153,30 +153,10 @@ export default function Page() {
     return defaultProvider;
   };
 
-  // Load configuration from localStorage on client side
+  // Purge credentials stored by older releases. Keys remain in React memory only.
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedUrl = localStorage.getItem("devpulse_backend_url");
-      if (savedUrl) {
-        setBackendUrl(savedUrl);
-      }
-      const savedKey = localStorage.getItem("devpulse_gemini_api_key");
-      const savedType = localStorage.getItem("devpulse_api_type") as any;
-      const savedProvider = localStorage.getItem("devpulse_selected_provider") as any;
-      
-      if (savedKey && savedKey.trim() !== "") {
-        setGeminiApiKey(savedKey);
-        const detected = detectProviderFromKey(savedKey, savedProvider || "gemini");
-        setSelectedProvider(detected as any);
-        const type = (detected === "gemini" && savedKey.startsWith("AIzaSy")) || !savedType ? "paid" : savedType;
-        setApiType(type as any);
-        setShowKeyModal(false);
-      } else {
-        if (savedType) setApiType(savedType);
-        if (savedProvider) setSelectedProvider(savedProvider);
-        setShowKeyModal(true);
-      }
-    }
+    localStorage.removeItem("devpulse_gemini_api_key");
+    localStorage.removeItem("devpulse_backend_url");
   }, []);
 
   const verifyAndConnectKey = async () => {
@@ -189,11 +169,12 @@ export default function Page() {
       return;
     }
 
-    const detected = detectProviderFromKey(geminiApiKey, apiType === "paid" ? "gemini" : selectedProvider);
+    const detected = detectProviderFromKey(geminiApiKey, selectedProvider);
     const type = detected === "gemini" && geminiApiKey.startsWith("AIzaSy") ? "paid" : "free";
 
     try {
       const res = await fetch(`${backendUrl}/api/validate-key`, {
+        signal: AbortSignal.timeout(15_000),
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -208,21 +189,21 @@ export default function Page() {
       }
 
       setValidationStatus("success");
-      localStorage.setItem("devpulse_gemini_api_key", geminiApiKey);
+      localStorage.removeItem("devpulse_gemini_api_key");
       localStorage.setItem("devpulse_api_type", type);
       localStorage.setItem("devpulse_selected_provider", detected);
       
-      setSelectedProvider(detected as any);
-      setApiType(type as any);
+      setSelectedProvider(detected);
+      setApiType(type);
       
       setTimeout(() => {
         setShowKeyModal(false);
         setValidationStatus("idle");
       }, 1000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setValidationStatus("error");
-      setValidationError(err.message || "Failed to establish validation connection.");
+      setValidationError((err instanceof Error ? err.message : "") || "Failed to establish validation connection.");
     }
   };
 
@@ -230,13 +211,13 @@ export default function Page() {
   useEffect(() => {
     const checkStatus = async () => {
       try {
-        const res = await fetch(`${backendUrl}/api/incidents`); // Check server status
+        const res = await fetch(`${backendUrl}/api/health`, { signal: AbortSignal.timeout(4000) }); // Check server status
         if (res.ok) {
           setBackendOnline(true);
         } else {
           setBackendOnline(false);
         }
-      } catch (err) {
+      } catch {
         setBackendOnline(false);
       }
     };
@@ -258,51 +239,35 @@ export default function Page() {
     setResults(null);
     setAgentLogs([]);
     
-    const logs = [
-      "🤖 [Orchestrator] Initializing multi-agent review workspace...",
-      `📂 [System] Loading code context for programming language: ${language.toUpperCase()}`,
-      "🚀 [Orchestrator] Spawned 'SecOps-Agent' (Senior Security Auditor)",
-      "🚀 [Orchestrator] Spawned 'PerfScale-Agent' (Principal Systems Architect)"
-    ];
-
-    // Stream logs for hackathon aesthetic
-    for (let i = 0; i < logs.length; i++) {
-      setAgentLogs((prev) => [...prev, logs[i]]);
-      setCurrentStepText(logs[i]);
-      await new Promise((r) => setTimeout(r, 600));
-    }
-
-    setAgentLogs((prev) => [
-      ...prev,
-      "⚡ [SecOps-Agent] Inspecting code paths for SQL Injection, XSS, and SSRF flaws...",
-      "⚡ [PerfScale-Agent] Running space-time complexity scans, memory leaks, & thread safety checks..."
+    setAgentLogs([
+      `Preparing ${language.toUpperCase()} review request.`,
+      "The server selects configured AI providers or limited offline static checks.",
+      "Waiting for the actual result; this is not a live agent trace.",
     ]);
-    setCurrentStepText("Agents executing analysis in parallel...");
-    await new Promise((r) => setTimeout(r, 800));
 
     if (geminiApiKey === "demo_mode_bypass") {
       setAgentLogs((prev) => [
         ...prev,
-        "✓ [SecOps-Agent] Style & PEP8 audit completed.",
-        "✓ [PerfScale-Agent] Performance optimization done. CPU optimization completed.",
-        "🎉 [Orchestrator] Consolidating audit reports and compiling refactored secure patch."
+        "DEMO ONLY: loading a prewritten example report; submitted code is not analyzed."
       ]);
       setCurrentStepText("Compiling final analysis...");
       await new Promise((r) => setTimeout(r, 600));
-      setResults(MOCK_DEMO_RESULTS);
+      setResults({ ...MOCK_DEMO_RESULTS, analysis_mode: "canned-demo" });
+      setAgentLogs(prev => [...prev, "DEMO ONLY: fixed sample results, not an analysis of your submitted code."]);
       setIsAnalyzing(false);
       return;
     }
 
     try {
       const res = await fetch(`${backendUrl}/api/analyze`, {
+        signal: AbortSignal.timeout(105_000),
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           code_content: codeContent,
           language: language,
           gemini_api_key: geminiApiKey,
-          provider: apiType === "paid" ? "gemini" : selectedProvider
+          provider: geminiApiKey ? selectedProvider : "auto"
         })
       });
 
@@ -315,22 +280,22 @@ export default function Page() {
       
       setAgentLogs((prev) => [
         ...prev,
-        "✓ [SecOps-Agent] Security audit completed. Issues isolated.",
-        "✓ [PerfScale-Agent] Performance optimization done. CPU optimization completed.",
-        "🎉 [Orchestrator] Consolidating audit reports and compiling refactored secure patch."
+        `Review response received in ${data.analysis_mode || "live-llm"} mode.`,
+        "Code has not been executed or benchmarked. Review all suggestions manually."
       ]);
       setCurrentStepText("Compiling final analysis...");
       await new Promise((r) => setTimeout(r, 600));
 
       setResults(data);
-    } catch (err: any) {
+      setAgentLogs(prev => [...prev, `Analysis mode: ${data.analysis_mode || "live-llm"}. No performance benchmark was run.`]);
+    } catch (err: unknown) {
       console.error(err);
       setAgentLogs((prev) => [
         ...prev,
-        `❌ [Error] Analysis failed: ${err.message || "Failed to communicate with the backend"}.`
+        `❌ [Error] Analysis failed: ${(err instanceof Error ? err.message : "") || "Failed to communicate with the backend"}.`
       ]);
       setCurrentStepText("Analysis failed.");
-      alert(`Analysis failed: ${err.message || "Failed to contact backend API. Make sure your server is running and your API Key is correct."}`);
+      alert(`Analysis failed: ${(err instanceof Error ? err.message : "") || "Failed to contact backend API. Make sure your server is running and your API Key is correct."}`);
     } finally {
       setIsAnalyzing(false);
     }
@@ -352,7 +317,7 @@ Language: ${language.toUpperCase()}
 ## 📊 Code Quality Metrics
 - Code Health Score: ${results.health_score}/100
 - Style Warnings: ${results.security_alerts}
-- Performance Boost: +${results.performance_boost}%
+- Performance change (not benchmarked): +${results.performance_boost}%
 
 ## 📝 Code Style & Linter Report
 ${results.security_report}
@@ -599,7 +564,7 @@ ${results.refactored_code}
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Performance Boost</p>
                     <div className="flex items-baseline gap-1">
                       <span className="text-2xl font-bold tracking-tight text-white">
-                        {results ? `+${results.performance_boost}%` : "+0%"}
+                        {results ? `+${results.performance_boost}%` : "UNMEASURED"}
                       </span>
                       <span className="text-xs text-slate-500">efficiency</span>
                     </div>
@@ -628,7 +593,7 @@ ${results.refactored_code}
                       <span className="text-xs text-slate-400">Language:</span>
                       <select
                         value={language}
-                        onChange={(e) => setLanguage(e.target.value as any)}
+                        onChange={(e) => setLanguage(e.target.value as Language)}
                         className="bg-slate-900 border border-slate-800 text-slate-200 text-xs px-3 py-1.5 rounded-xl outline-none focus:border-indigo-500/50 cursor-pointer"
                       >
                         <option value="python">Python</option>
@@ -810,7 +775,7 @@ ${results.refactored_code}
                           <h4 className="text-sm font-semibold text-emerald-400 font-sans">Agent 2: Performance Optimizer Report</h4>
                         </div>
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-400/30">
-                          {results.performance_boost > 50 ? "SPEEDUP +65%" : "STABLE"}
+                          {results.performance_boost > 50 ? `ESTIMATE +${results.performance_boost}%` : "STABLE"}
                         </span>
                       </div>
 
@@ -1011,7 +976,7 @@ ${results.refactored_code}
                     className="w-full bg-[#0d0f17] border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 outline-none focus:border-indigo-500/50"
                   />
                   <p className="text-[10px] text-slate-500">
-                    If left blank, DevPulse AI uses the backend host environment variable GEMINI_API_KEY. If no key is set, the system falls back to a sandbox simulator mode.
+                    If left blank, DevPulse AI uses the backend host environment variable GEMINI_API_KEY. If no key is set, limited offline static checks run, clearly labelled (not an AI review).
                   </p>
                 </div>
 
@@ -1019,22 +984,21 @@ ${results.refactored_code}
                   <label className="text-xs text-slate-400 font-medium">Backend API Host URL</label>
                   <input
                     type="text"
-                    placeholder="http://localhost:8000"
-                    value={backendUrl}
-                    onChange={(e) => setBackendUrl(e.target.value)}
+                    placeholder="Same-origin secure proxy"
+                    value="Same-origin /api proxy"
+                    readOnly
                     className="w-full bg-[#0d0f17] border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 outline-none focus:border-indigo-500/50"
                   />
                   <p className="text-[10px] text-slate-500">
-                    Configure this target to point to your exposed web tunnel URL when deploying or presenting the project online.
+                    Configure BACKEND_INTERNAL_URL on the server. Credentials are never sent to a user-editable host.
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs text-slate-400 font-medium">Parallel Threads Limit</label>
-                  <select className="bg-slate-900 border border-slate-800 text-slate-200 text-xs px-3 py-1.5 rounded-xl outline-none focus:border-indigo-500/50 w-full">
+                  <label className="text-xs text-slate-400 font-medium">Parallel Threads (fixed server limit)</label>
+                  <select disabled className="bg-slate-900 border border-slate-800 text-slate-200 text-xs px-3 py-1.5 rounded-xl outline-none focus:border-indigo-500/50 w-full">
                     <option value="2">2 (SecOps + PerfScale concurrent)</option>
-                    <option value="4">4 (Multi-thread repository split)</option>
-                    <option value="1">1 (Sequential execution)</option>
+
                   </select>
                 </div>
 
@@ -1043,12 +1007,12 @@ ${results.refactored_code}
                     onClick={() => {
                       const detected = detectProviderFromKey(geminiApiKey, selectedProvider);
                       const type = detected === "gemini" && geminiApiKey.startsWith("AIzaSy") ? "paid" : "free";
-                      localStorage.setItem("devpulse_backend_url", backendUrl);
-                      localStorage.setItem("devpulse_gemini_api_key", geminiApiKey);
+                      localStorage.removeItem("devpulse_backend_url");
+                      localStorage.removeItem("devpulse_gemini_api_key");
                       localStorage.setItem("devpulse_selected_provider", detected);
                       localStorage.setItem("devpulse_api_type", type);
-                      setSelectedProvider(detected as any);
-                      setApiType(type as any);
+                      setSelectedProvider(detected);
+                      setApiType(type);
                       alert(`Configuration saved successfully! Detected provider: ${detected.toUpperCase()}`);
                     }}
                     className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-semibold text-white transition-all cursor-pointer"
@@ -1062,6 +1026,9 @@ ${results.refactored_code}
 
         </div>
 
+        <p className="px-8 py-3 text-xs text-amber-300" role="status">
+          {results ? `Mode: ${results.analysis_mode || "live-llm"}. Scores are heuristic, not a security guarantee. Speedup is unmeasured.` : "No API key required: server credentials or limited offline static checks are used. Optional keys stay in memory only."}
+        </p>
         {/* FOOTER */}
         <footer className="w-full text-center border-t border-slate-800/60 py-6 mt-12 text-[10px] text-slate-500 shrink-0">
           <p>DevPulse AI © 2026 - Hackathon Submission. All Rights Reserved.</p>
@@ -1147,7 +1114,7 @@ ${results.refactored_code}
                   <select
                     value={selectedProvider}
                     onChange={(e) => {
-                      setSelectedProvider(e.target.value as any);
+                      setSelectedProvider(e.target.value as Provider);
                       setValidationError("");
                       setValidationStatus("idle");
                     }}
@@ -1165,7 +1132,7 @@ ${results.refactored_code}
                 <div className="bg-[#0d0f17]/80 p-3.5 rounded-xl border border-slate-800/80 flex items-center justify-between gap-3 text-xs leading-relaxed text-slate-400">
                   <div className="flex items-center gap-2">
                     <Info className="h-4 w-4 text-indigo-400 shrink-0" />
-                    <span>Get your key from the provider's developer console page.</span>
+                    <span>Get your key from the provider&apos;s developer console page.</span>
                   </div>
                   <a
                     href={
@@ -1251,7 +1218,7 @@ ${results.refactored_code}
               <button
                 type="button"
                 onClick={() => {
-                  localStorage.setItem("devpulse_gemini_api_key", "demo_mode_bypass");
+                  localStorage.removeItem("devpulse_gemini_api_key");
                   setGeminiApiKey("demo_mode_bypass");
                   setShowKeyModal(false);
                   setValidationError("");

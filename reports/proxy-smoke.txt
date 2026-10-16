@@ -1,0 +1,6 @@
+Dashboard HTML: 200
+Same-origin health proxy: 200
+No-key analysis through Next proxy: local-static, 1 finding
+Cross-origin POST: blocked 403
+Proxy payload limit: blocked 413
+Proxy route allowlist: 404

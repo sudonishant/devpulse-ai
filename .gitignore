@@ -30,3 +30,12 @@ backend/mcp/code_repo/
 
 # OpenRouter Keys Pool
 backend/openrouter_keys.json
+
+# Secret variants and local artifacts
+.env.*
+!.env.example
+*.pem
+*.key
+.pytest_cache/
+*.tsbuildinfo
+backend/requirements.local.txt

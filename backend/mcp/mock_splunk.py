@@ -292,6 +292,10 @@ TOOLS = [
 
 def handle_generate_spl(arguments):
     question = arguments.get("question", "").lower()
+    if "git" in question or "commit" in question or "vcs" in question:
+        return {"spl": "index=vcs repository=* | table commit, author, date, message, diff | head 5"}
+    if "kubernetes" in question or "pod" in question:
+        return {"spl": "index=infrastructure type=kubernetes | stats avg(cpu) as cpu, avg(memory) as mem by deployment"}
     if "latency" in question or "slow" in question or "payment" in question:
         spl = "index=apm service=payment-service | stats avg(duration_ms) as avg_duration by operation, trace_id | sort -avg_duration"
     elif "throttling" in question or "cpu" in question or "gateway" in question:
@@ -309,15 +313,24 @@ def handle_generate_spl(arguments):
 
 def handle_run_splunk_query(arguments):
     query = arguments.get("query", "").lower()
+    # Guardrails are enforced at the tool boundary, not just at the caller.
+    try:
+        from .security import validate_spl
+    except ImportError:  # standalone stdio subprocess
+        from security import validate_spl
+    valid, reason = validate_spl(query)
+    if not valid:
+        raise ValueError(reason)
     scenarios = get_scenarios()
     
+    if "index=vcs" in query:
+        return {"results": [entry for scenario in scenarios.values() for entry in scenario["git_logs"]]}
+    if "index=infrastructure" in query:
+        return {"results": [scenario["k8s_status"] for scenario in scenarios.values()]}
     # Decide which scenario is being queried based on the query contents
     if "payment-service" in query or "latency" in query or ("apm" in query and "payment" in query):
         scenario = scenarios["latency_spike"]
-        if "stats" in query or "cpu" in query:
-            return {"results": [scenario["k8s_status"]]}
-        else:
-            return {"results": scenario["apm_traces"]}
+        return {"results": scenario["apm_traces"]}
             
     elif "api-gateway" in query or "throttling" in query or "gateway" in query:
         scenario = scenarios["cpu_throttling"]
@@ -358,6 +371,7 @@ def handle_log_audit_action(arguments):
         "tokens_used": arguments.get("tokens_used", 0)
     }
     AUDIT_INDEX.append(audit_entry)
+    del AUDIT_INDEX[:-1000]
     logger.info(f"Audit log registered: {audit_entry}")
     return {"success": True, "logged_entry": audit_entry}
 
@@ -366,14 +380,21 @@ def handle_execute_remediation(arguments):
     target = arguments.get("target")
     value = arguments.get("value", "")
     
+    allowed_sql = "CREATE INDEX idx_payment_methods_status ON payment_methods(status);"
+    if action_type == "execute_sql" and (target != "postgres-db" or value != allowed_sql):
+        return {"success": False, "message": "Only the predefined index hotfix is permitted."}
+    if action_type == "rollback_commit" and target not in {"8f3b2cd", "1c9a4ef", "9a2d3e"}:
+        return {"success": False, "message": "Unknown rollback target."}
+    if action_type == "scale_deployment" and (target not in {"api-gateway-deployment", "auth-service-deployment"} or value != "5"):
+        return {"success": False, "message": "Unsupported simulation scaling option."}
+    if action_type not in {"execute_sql", "rollback_commit", "scale_deployment"}:
+        return {"success": False, "message": "Unknown remediation action."}
+
     if action_type == "execute_sql":
-        # Run real index creation on SQLite
+        # Run only the allowlisted, idempotent index operation on SQLite
         try:
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            cursor.execute(value)
-            conn.commit()
-            conn.close()
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_payment_methods_status ON payment_methods(status)")
             msg = f"Database migration executed successfully on SQLite DB: index created with query '{value}'."
             logger.info(msg)
         except Exception as db_err:
@@ -428,7 +449,7 @@ spec:
             return {"success": False, "message": msg}
             
     elif action_type == "scale_deployment":
-        msg = f"Kubernetes API scaled deployment '{target}' replica count to {value} pods. Load distributed successfully."
+        msg = f"SIMULATION ONLY: would scale deployment '{target}' replica count to {value} pods. Load distributed successfully."
         logger.info(msg)
     else:
         msg = f"Remediation action '{action_type}' executed on '{target}' with values '{value}' successfully."
@@ -498,7 +519,7 @@ def process_message(line):
                 "error": {
                     "code": -32603,
                     "message": str(tool_err),
-                    "data": traceback.format_exc()
+                    "data": "Tool execution failed"
                 }
             }
     else:

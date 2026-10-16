@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import requests
+import threading
 from typing import TypedDict, List, Dict, Any
 from langchain_core.messages import BaseMessage, AIMessage, HumanMessage
 from langgraph.graph import StateGraph, END
@@ -34,11 +35,13 @@ class AgentState(TypedDict):
 
 # Initialize Splunk MCP Client
 mcp_client = None
+mcp_init_lock = threading.Lock()
 def get_mcp_client():
     global mcp_client
-    if mcp_client is None:
-        mcp_client = SplunkMCPClient()
-    return mcp_client
+    with mcp_init_lock:
+        if mcp_client is None or mcp_client.process.poll() is not None:
+            mcp_client = SplunkMCPClient()
+        return mcp_client
 
 # Check for API credentials to decide on Live vs Local vs Mock LLM execution
 def is_live_llm_enabled() -> bool:
@@ -56,12 +59,12 @@ def is_ollama_available() -> bool:
         pass
     return False
 
-def run_live_llm(system_prompt: str, user_content: str, model_name="gemini-1.5-flash") -> str:
+def run_live_llm(system_prompt: str, user_content: str, model_name=None) -> str:
     """Invokes Google Gemini via langchain_google_genai if keys are configured."""
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
         api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-        llm = ChatGoogleGenerativeAI(model=model_name, google_api_key=api_key)
+        llm = ChatGoogleGenerativeAI(model=model_name or os.getenv("GEMINI_MODEL", "gemini-2.5-flash"), google_api_key=api_key)
         
         messages = [
             ("system", system_prompt),
@@ -70,7 +73,7 @@ def run_live_llm(system_prompt: str, user_content: str, model_name="gemini-1.5-f
         resp = llm.invoke(messages)
         return resp.content
     except Exception as e:
-        logger.error(f"Live LLM execution failed: {e}. Falling back to Ollama.")
+        logger.warning("Live LLM execution failed; using fallback (%s)", type(e).__name__)
         return ""
 
 def run_ollama_llm(system_prompt: str, user_content: str, model_name="qwen2.5-coder:1.5b") -> str:
@@ -90,7 +93,7 @@ def run_ollama_llm(system_prompt: str, user_content: str, model_name="qwen2.5-co
         if res.status_code == 200:
             return res.json().get("message", {}).get("content", "")
     except Exception as e:
-        logger.error(f"Ollama LLM execution failed: {e}. Falling back to simulator.")
+        logger.warning("Ollama execution failed; using simulator (%s)", type(e).__name__)
     return ""
 
 def run_agent_reasoning(system_prompt: str, user_content: str, default_mock_content: str) -> str:
@@ -111,7 +114,7 @@ def run_agent_reasoning(system_prompt: str, user_content: str, default_mock_cont
             
     # 3. Fallback to High Fidelity Mock Simulation
     logger.info("No live or local LLM available. Running high-fidelity agent simulator...")
-    return default_mock_content
+    return "[SIMULATED INCIDENT REASONING — not live telemetry]\n" + default_mock_content
 
 # Triage Node
 def triage_node(state: AgentState) -> AgentState:
@@ -324,7 +327,10 @@ def remediation_node(state: AgentState) -> AgentState:
         })
         
         state["user_approval_needed"] = False
-        state["remediation_status"] = "executed"
+        state["remediation_status"] = "executed" if exec_res.get("success") else "failed"
+        if not exec_res.get("success"):
+            state["messages"].append(AIMessage(content="Remediation failed; manual intervention required.", name="RemediationAgent"))
+            return state
         
         success_msg = f"Remediation executed successfully: {exec_res.get('message')}. System status returning to normal."
         state["messages"].append(AIMessage(content=success_msg, name="RemediationAgent"))
@@ -349,7 +355,7 @@ def auditor_node(state: AgentState) -> AgentState:
     
     service = state.get("service")
     diagnosis = state.get("diagnosis", "")
-    remediation = state.get("proposed_remediation", {})
+    remediation = state.get("proposed_remediation", {}).get("selected_option", {})
     status = state.get("remediation_status")
     
     # Log audit trail to Splunk
@@ -357,8 +363,8 @@ def auditor_node(state: AgentState) -> AgentState:
     audit_res = client.call_tool("log_audit_action", {
         "agent_name": "AuditorAgent",
         "action": audit_msg,
-        "status": "success",
-        "tokens_used": 1850
+        "status": status,
+        "tokens_used": 0
     })
     
     state["audit_logs"].append(audit_res.get("logged_entry", {}))
@@ -384,7 +390,7 @@ def auditor_node(state: AgentState) -> AgentState:
     return state
 
 # Build the Graph
-def build_sre_graph():
+def build_sre_graph(resume=False):
     builder = StateGraph(AgentState)
     
     # Register nodes
@@ -394,7 +400,7 @@ def build_sre_graph():
     builder.add_node("audit", auditor_node)
     
     # Set entry point
-    builder.set_entry_point("triage")
+    builder.set_entry_point("remediate" if resume else "triage")
     
     # Set linear edges
     builder.add_edge("triage", "diagnose")
@@ -417,7 +423,9 @@ def build_sre_graph():
 
 # Singleton instance of compiled graph
 _compiled_graph = None
-def get_graph():
+def get_graph(resume=False):
+    if resume:
+        return build_sre_graph(resume=True)
     global _compiled_graph
     if _compiled_graph is None:
         _compiled_graph = build_sre_graph()
