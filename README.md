@@ -1,203 +1,147 @@
-<div align="center">
+# DevPulse AI
 
-# 🔐⚡ DevPulse AI
+DevPulse AI is a local FastAPI + Next.js hackathon/demo application with two workflows:
 
-### Real-time AI code security + performance audit in under 30 seconds
+- **Code audit:** submit a code snippet to concurrent security and performance prompts backed by a selected LLM provider.
+- **Incident-room simulation:** trigger one of three predefined incidents; a LangGraph workflow queries the local mock Splunk MCP server, pauses for approval, and records simulated remediation.
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![Next.js](https://img.shields.io/badge/Next.js-15-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
-[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-1.5%20Pro-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
-[![LangGraph](https://img.shields.io/badge/LangGraph-Multi--Agent-FF6B35?style=for-the-badge&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-22C55E?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Hackathon](https://img.shields.io/badge/Hackathon-FFD700?style=for-the-badge)](https://devpost.com/)
+This is not a production security scanner or autonomous production-remediation service. Review and test every model result and recommendation.
 
-**DevPulse AI** is a production-ready, autonomous dual-agent code auditing platform that intercepts vulnerabilities and performance bottlenecks before they hit production. Powered by **Google Gemini 1.5 Pro** and **LangGraph**, it spawns **SecOps-Agent** and **PerfScale-Agent** concurrently — delivering OWASP security patches and performance refactors in a single, stunning glassmorphic dashboard.
+## Current implementation
 
-> Built for a live 24-hour hackathon — fully functional, fully autonomous, fully impressive.
+- `POST /api/analyze` runs security and performance provider calls concurrently. Backend branches support Gemini, Groq, Cohere, Hugging Face, and OpenRouter.
+- `POST /api/validate-key` performs provider-specific key validation requests.
+- `POST /api/incidents/trigger` accepts `latency_spike`, `error_spike`, or `cpu_throttling`.
+- Incident state is held in memory. The incident workflow uses `backend/mcp/mock_splunk.py`, not a live Splunk service, and pauses before simulated remediation.
+- The Next.js UI provides a code textarea, language selector, audit results, report download, incident status, and provider-key settings.
 
-</div>
+The “GitHub Repository Target” field is currently visual-only: it does not fetch or clone a repository. The special `demo_mode_bypass` value returns hard-coded frontend results and does not audit code.
 
----
+## Architecture
 
-## Architecture — Dual-Agent Flow
-
-```mermaid
-graph TD
-    User["Developer - Paste Code or GitHub URL"] -->|Execute Audit| API["FastAPI Backend - port 8000"]
-
-    API -->|Concurrent Dispatch| Orchestrator["Multi-Agent Orchestrator - LangGraph"]
-
-    Orchestrator -->|Spawn Agent 1| SecOps["SecOps-Agent - Senior Cyber Security Auditor"]
-    Orchestrator -->|Spawn Agent 2| PerfScale["PerfScale-Agent - Principal Software Architect"]
-
-    SecOps -->|OWASP Top 10 Scan| SecResults["SQL Injection, XSS, SSRF, Hardcoded Secrets, API Key Leaks"]
-    PerfScale -->|Performance Profiling| PerfResults["CPU Bottlenecks, Memory Leaks, Code Smells, Big-O Analysis"]
-
-    SecResults --> Compiler["Response Compiler - JSON Payload"]
-    PerfResults --> Compiler
-
-    Compiler -->|Stream to UI| Dashboard["Next.js Dashboard - port 3000"]
-
-    Dashboard --> HealthScore["Code Health Score - Live SVG Metric"]
-    Dashboard --> Diff["Side-by-Side Code Diff - Original vs Patched"]
-    Dashboard --> Terminal["Live Agent Log Terminal"]
-    Dashboard --> Alerts["Security Alerts Counter"]
+```text
+Browser (Next.js :3000)
+  ├─ /api/analyze, /api/validate-key ── FastAPI (uvicorn :8000)
+  │                                      └─ devpulse.py ── external LLM provider
+  ├─ /api/incidents/*, WebSocket ────── agents/graph.py
+  │                                      └─ mcp/client.py ── mock_splunk.py + SQLite
+  └─ local UI
 ```
 
----
+The mock server creates ignored demo data under `backend/mcp/` (`hackathon.db` and `code_repo/`). It does not connect to or modify your infrastructure.
 
-## 5 Cutting-Edge Features
+## Requirements
 
-### 1. Dual-Agent Concurrent Review Engine
-Instead of running a single prompt that struggles with context-switching, DevPulse AI spawns **two specialized autonomous agents** that process code in parallel — zero waiting, double the intelligence:
-- **SecOps-Agent** — Hunts SQL Injection, XSS, SSRF, hardcoded API keys, and all OWASP Top 10 vulnerabilities
-- **PerfScale-Agent** — Diagnoses execution bottlenecks, memory leaks, and Big-O complexity issues
+- Python 3.10+
+- Node.js compatible with the installed Next.js 16 package (Node 20+ recommended)
+- npm
 
-### 2. Live Code Health Score & Diagnostic Telemetry
-A dynamically rendered **circular SVG Code Health Score** (0–100) gives you an instant at-a-glance signal. The live agent log terminal streams step-by-step agent reasoning in real time — like watching two senior engineers debug your code simultaneously.
+A provider key is required for live code audits. No live Splunk instance is required for the incident simulator.
 
-### 3. OWASP Top 10 Security Scanner
-Deep-scans code against the **OWASP Top 10** vulnerability checklist including injection attacks, broken auth, sensitive data exposure, and insecure deserialization — with severity-tagged findings and auto-generated patches.
+## Quick start
 
-### 4. Advanced Side-by-Side Code Diff Panel
-Your original vulnerable code (red border) sits beside the AI-patched, optimized version (emerald border) in a beautiful diff panel — complete with line-level highlighting and a one-click **"Copy Fixed Code"** clipboard utility.
+From the repository root, use two terminals.
 
-### 5. Multi-Language Support
-Audits code across **Python, JavaScript, TypeScript, C++, Java** and more — with language-aware system prompts, adaptive formatting, and language-specific optimization suggestions.
-
-> **Bonus:** If no API key is configured, DevPulse AI seamlessly falls back to a **high-fidelity local sandbox** — your demo will never crash.
-
----
-
-## Prerequisites
-
-Before you begin, make sure you have the following installed:
-
-| Requirement | Version | Check |
-|------------|---------|-------|
-| **Python** | 3.10 or higher | `python3 --version` |
-| **Node.js** | 18.x or higher | `node --version` |
-| **npm** | 8.x or higher | `npm --version` |
-| **Git** | Any recent version | `git --version` |
-
----
-
-## Installation & Running Locally
-
-### Quick Start (Ek command mein sab kuch!)
+### Backend
 
 ```bash
-git clone https://github.com/Neeshant01/devpulse-ai.git
-cd devpulse-ai
-bash run.sh
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r backend/requirements.txt
+python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-### Manual Setup (Step-by-step)
+### Frontend
 
-#### Step 1 — Clone the Repository
 ```bash
-git clone https://github.com/Neeshant01/devpulse-ai.git
-cd devpulse-ai
-```
-
-#### Step 2 — Backend Setup (Python / FastAPI)
-```bash
-cd backend
-pip install -r requirements.txt
-python main.py
-# Backend starts on http://localhost:8000
-```
-
-#### Step 3 — Frontend Setup (New terminal mein chalayein)
-```bash
-cd ../frontend
+cd frontend
 npm install
-npm run dev
-# Frontend starts on http://localhost:3000
+npm run dev -- -p 3000
 ```
 
-#### Step 4 — Open the Dashboard
-Navigate to **http://localhost:3000** in your browser.
+Open `http://127.0.0.1:3000`. The API docs are at `http://127.0.0.1:8000/docs`.
 
----
+`run.sh` is optional and assumes an existing `backend/venv/bin/python`; it kills processes on ports 8000 and 3000, binds the backend to `0.0.0.0`, and writes log files. The manual commands are safer for development.
 
-## Environment Variables
+## Environment variables and keys
 
-Create a `.env` file in the `backend/` directory:
+The backend reads these names (values are intentionally omitted):
+
+- `GEMINI_API_KEY` or `GOOGLE_API_KEY`
+- `GROQ_API_KEY`
+- `COHERE_API_KEY`
+- `HUGGINGFACE_API_KEY` or `HF_API_KEY`
+- `OPENROUTER_API_KEY` or `OR_API_KEY`
+- `OPENROUTER_KEYS` (comma-separated fallback pool)
+
+The frontend can send a key from Settings. It stores that value in browser `localStorage` under `devpulse_gemini_api_key`, even when another provider is selected, and sends it in the `/api/analyze` body. Use a disposable development key and clear site storage afterward. Submitted code is sent to the selected external provider; remove secrets and personal data first.
+
+## API examples
+
+### Live code audit
 
 ```bash
-# backend/.env
-GEMINI_API_KEY="your-google-gemini-api-key-here"
+curl -sS http://127.0.0.1:8000/api/analyze \
+  -H 'Content-Type: application/json' \
+  -d '{"code_content":"def add(a, b):\n    return a + b","language":"python","provider":"gemini"}'
 ```
 
-> **API Key kahan se milegi?** Get your free Gemini API key at [Google AI Studio](https://aistudio.google.com/app/apikey).
->
-> **Note:** If `GEMINI_API_KEY` is not set, DevPulse AI will automatically activate **local sandbox mode** — perfect for demos without internet access!
+Request fields are `code_content`, `language`, `gemini_api_key` (a compatibility name that may contain another provider key), and `provider`. Without a usable key, this endpoint returns an error; there is no offline fallback for code audits.
 
----
+### Incident simulation
 
-## Project Structure
-
-```
-devpulse-ai/
-├── backend/
-│   ├── main.py              # FastAPI entry point (port 8000)
-│   ├── devpulse.py          # Core orchestrator logic
-│   ├── requirements.txt     # Python dependencies
-│   ├── agents/              # SecOps-Agent & PerfScale-Agent
-│   └── mcp/                 # Model Context Protocol configs
-├── frontend/
-│   ├── src/                 # Next.js app source
-│   ├── public/              # Static assets
-│   ├── package.json         # Node.js dependencies
-│   └── next.config.ts       # Next.js configuration
-├── run.sh                   # One-command startup script
-├── logo.png                 # Project logo
-└── README.md
+```bash
+curl -sS http://127.0.0.1:8000/api/incidents/trigger \
+  -H 'Content-Type: application/json' -d '{"scenario":"latency_spike"}'
+curl -sS http://127.0.0.1:8000/api/incidents
+curl -sS http://127.0.0.1:8000/api/incidents/<incident_id>
 ```
 
----
+Connect to `ws://127.0.0.1:8000/ws/incidents/<incident_id>` for state updates. When `user_approval_needed` is true, continue the simulation with either:
 
-## Tech Stack
+```bash
+curl -sS -X POST http://127.0.0.1:8000/api/incidents/<incident_id>/approve \
+  -H 'Content-Type: application/json' \
+  -d '{"action_type":"scale_deployment","target":"api-gateway-deployment","value":"5","title":"Demo approval"}'
+# Or: curl -sS -X POST http://127.0.0.1:8000/api/incidents/<incident_id>/reject
+```
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| **AI Engine** | Google Gemini 1.5 Pro | LLM reasoning for both agents |
-| **Orchestration** | LangGraph / LangChain | Concurrent multi-agent execution |
-| **Backend** | Python 3.10 + FastAPI | REST API, async agent dispatch |
-| **Frontend** | Next.js 15 + TypeScript | Dashboard, UI rendering |
-| **Styling** | TailwindCSS | Glassmorphic dark-mode UI |
-| **Protocol** | MCP (Model Context Protocol) | Agent communication layer |
+The approval gate is a demo control, not authentication or authorization. Simulated telemetry and remediation do not affect a real cluster, database, repository, or Splunk instance.
 
----
+## Project map
 
-## Demo
+```text
+backend/main.py              # FastAPI routes, incidents, WebSocket updates
+backend/devpulse.py          # Provider calls and audit result shaping
+backend/agents/graph.py      # Incident LangGraph and approval pause
+backend/mcp/client.py        # JSON-RPC subprocess client
+backend/mcp/mock_splunk.py   # Local telemetry/remediation simulator
+backend/mcp/security.py      # SPL guardrails
+frontend/src/app/page.tsx    # Main UI and browser API calls
+frontend/src/app/globals.css # UI styles
+run.sh                       # Convenience launcher with extra assumptions
+devpost_story.md             # Hackathon narrative
+```
 
-The glassmorphic dashboard renders:
-- **Code Health Score** — circular SVG gauge (real-time, 0-100)
-- **Security Alerts** — count badge with severity breakdown
-- **Code Diff Panel** — original vs patched side-by-side
-- **Agent Log Terminal** — live streaming agent reasoning
+## Checks
 
----
+```bash
+# repository root
+python3 -m compileall -q backend
+# frontend directory
+npm run lint
+npm run build
+```
+
+There is no checked-in automated test suite. Static checks do not prove provider access or a running frontend/backend connection.
+
+## Security and privacy
+
+- Never commit `.env`, provider keys, `backend/openrouter_keys.json`, generated logs, or the ignored mock database.
+- CORS is currently permissive (`allow_origins=["*"]`) and the API has no authentication. Keep the backend bound to localhost.
+- Treat generated patches, severity counts, health scores, performance percentages, and remediation plans as unverified model/demo output.
+- Incident state is process-local and disappears on restart; this is not a durable or multi-user service.
 
 ## License
 
-Distributed under the **MIT License**. See [`LICENSE`](./LICENSE) for more information.
-
----
-
-## Author
-
-**Nishant Kumar**
-
-[![GitHub Neeshant01](https://img.shields.io/badge/GitHub-Neeshant01-181717?style=for-the-badge&logo=github)](https://github.com/Neeshant01)
-[![GitHub sudonishant](https://img.shields.io/badge/GitHub-sudonishant-181717?style=for-the-badge&logo=github)](https://github.com/sudonishant)
-
-*Built with love during a 24-hour hackathon sprint*
-
----
-
-> Agar project helpful laga toh ek star zaroor dena! ⭐
->
-> **DevPulse AI — Where code meets autonomous intelligence.**
+No license file is currently tracked. Check with the project owner before redistributing this code.
