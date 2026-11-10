@@ -13,8 +13,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DevPulse AI | Autonomous Multi-Agent Code Reviewer & Security Auditor",
-  description: "DevPulse AI is a production-ready, autonomous code auditing platform that intercepts vulnerabilities and performance bottlenecks using parallel agentic reasoning.",
+  title: "DevPulse AI | Code Audit & Incident Simulation Demo",
+  description: "A local FastAPI/Next.js demo for provider-backed code audits and incident simulations with LangGraph orchestration and a mock Splunk MCP workflow.",
+  openGraph: {
+    title: "DevPulse AI | Code Audit & Incident Simulation Demo",
+    description: "A local FastAPI/Next.js demo for provider-backed code audits and incident simulations with LangGraph orchestration and a mock Splunk MCP workflow.",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "DevPulse AI | Code Audit & Incident Simulation Demo",
+    description: "A local FastAPI/Next.js demo for provider-backed code audits and incident simulations with LangGraph orchestration and a mock Splunk MCP workflow.",
+  },
 };
 
 export default function RootLayout({
